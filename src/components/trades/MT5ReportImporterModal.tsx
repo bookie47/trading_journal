@@ -34,7 +34,7 @@ export function MT5ReportImporterModal({ isOpen, onClose }: Props) {
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingPdf, setIsLoadingPdf] = useState(false);
   const [customDeposit, setCustomDeposit] = useState<number | null>(null);
-  const [saveMode, setSaveMode] = useState<'cash_flow' | 'mt5_board'>('cash_flow');
+  const [saveMode, setSaveMode] = useState<'both' | 'cash_flow' | 'mt5_board'>('both');
 
   useEffect(() => {
     if (report) {
@@ -119,7 +119,57 @@ export function MT5ReportImporterModal({ isOpen, onClose }: Props) {
     setIsSaving(true);
     try {
       if (report.trades.length === 0) {
-        // Save as a Trading Session Record
+        if (saveMode === 'both') {
+          // 1. Save Cash-Flow Record
+          const cashTrade: Trade = {
+            id: `session_cash_${Date.now()}`,
+            portfolio_id: activePortfolio?.id || 'portfolio-demo-1',
+            asset: 'GOLD (CASH-FLOW)',
+            side: effectiveCashProfit >= 0 ? 'long' : 'short',
+            size: 0.01,
+            entry_price: 1,
+            exit_price: 1,
+            fee: 0,
+            entry_time: new Date(Date.now() - 1000).toISOString(),
+            exit_time: new Date().toISOString(),
+            strategy_id: selectedStrategyId || undefined,
+            status: 'closed',
+            pnl: effectiveCashProfit,
+            pnl_percentage: effectiveROI,
+            r_multiple: report.profitFactor || 0,
+            notes: `[วิธีที่ 1: กระแสเงินสดจริง] เงินต้นฝากจริง 2 รอบ: $${effectiveDeposit} | ถอนออกจริง: $${effectiveWithdrawal} | กำไรเงินสดจริง: +$${effectiveCashProfit} USD (ROI +${effectiveROI}%)`,
+            created_at: new Date().toISOString(),
+          };
+          await addTrade(cashTrade);
+
+          // 2. Save Board Trade Record
+          const boardTrade: Trade = {
+            id: `session_board_${Date.now()}`,
+            portfolio_id: activePortfolio?.id || 'portfolio-demo-1',
+            asset: 'GOLD (MT5-BOARD)',
+            side: report.totalNetProfit >= 0 ? 'long' : 'short',
+            size: 0.01,
+            entry_price: 1,
+            exit_price: 1,
+            fee: 0,
+            entry_time: new Date(Date.now() - 2000).toISOString(),
+            exit_time: new Date().toISOString(),
+            strategy_id: selectedStrategyId || undefined,
+            status: 'closed',
+            pnl: report.totalNetProfit,
+            pnl_percentage: Number(((report.totalNetProfit / effectiveDeposit) * 100).toFixed(1)),
+            r_multiple: report.profitFactor || 0,
+            notes: `[วิธีที่ 2: ผลงานกระดาน MT5] Gross Win: +$${report.grossProfit} | Gross Loss: -$${report.grossLoss} | กำไรบอร์ดสุทธิ: +$${report.totalNetProfit} USD (PF ${report.profitFactor})`,
+            created_at: new Date().toISOString(),
+          };
+          await addTrade(boardTrade);
+
+          alert(`บันทึกครบทั้ง 2 วิธีคิดเข้าสมุดบันทึกเรียบร้อยแล้ว!\n• 💵 กระแสเงินสดจริง: +$${effectiveCashProfit} USD (ROI +${effectiveROI}%)\n• 📊 ผลงานกระดาน MT5: +$${report.totalNetProfit} USD`);
+          setReport(null);
+          onClose();
+          return;
+        }
+
         const tradeId = `session_${Date.now()}`;
         const finalPnL = saveMode === 'cash_flow' ? effectiveCashProfit : report.totalNetProfit;
         const finalROI = saveMode === 'cash_flow' ? effectiveROI : Number(((report.totalNetProfit / effectiveDeposit) * 100).toFixed(1));
@@ -127,7 +177,7 @@ export function MT5ReportImporterModal({ isOpen, onClose }: Props) {
         const newTrade: Trade = {
           id: tradeId,
           portfolio_id: activePortfolio?.id || 'portfolio-demo-1',
-          asset: 'GOLD (SESSION)',
+          asset: saveMode === 'cash_flow' ? 'GOLD (CASH-FLOW)' : 'GOLD (MT5-BOARD)',
           side: finalPnL >= 0 ? 'long' : 'short',
           size: 0.01,
           entry_price: 1,
@@ -147,7 +197,7 @@ export function MT5ReportImporterModal({ isOpen, onClose }: Props) {
         };
 
         await addTrade(newTrade);
-        alert(`บันทึกผลงานกำไรจริง +$${finalPnL} USD (ROI +${finalROI}%) เรียบร้อยแล้ว!`);
+        alert(`บันทึกผลงานกำไร +$${finalPnL} USD (ROI +${finalROI}%) เรียบร้อยแล้ว!`);
         setReport(null);
         onClose();
         return;
@@ -435,14 +485,34 @@ export function MT5ReportImporterModal({ isOpen, onClose }: Props) {
               </table>
             </div>
 
-            {/* Accounting Mode Toggle */}
-            <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
-              <div className="text-xs font-semibold text-slate-300">เลือกวิธีบันทึกยอดกำไรลงพอร์ต (Accounting Method):</div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {/* Accounting Mode Toggle (3 Options) */}
+            <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
+              <div className="text-xs font-bold text-slate-200">เลือกวิธีบันทึกยอดกำไรลงพอร์ต (Accounting Method):</div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                {/* Option 1: Both */}
+                <button
+                  type="button"
+                  onClick={() => setSaveMode('both')}
+                  className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
+                    saveMode === 'both'
+                      ? 'bg-gradient-to-br from-amber-500/20 to-emerald-500/20 border-amber-500/60 text-amber-200 ring-1 ring-amber-500/50'
+                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="font-bold text-amber-300 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    🌟 บันทึกทั้ง 2 แบบ (แนะนำ)
+                  </div>
+                  <div className="text-[11px] text-slate-300 mt-1">
+                    บันทึกทั้ง <b>+$188.81</b> (เงินสด) & <b>+$161.33</b> (กระดาน)
+                  </div>
+                </button>
+
+                {/* Option 2: Cash Flow Only */}
                 <button
                   type="button"
                   onClick={() => setSaveMode('cash_flow')}
-                  className={`p-2.5 rounded-lg border text-left text-xs transition-all ${
+                  className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
                     saveMode === 'cash_flow'
                       ? 'bg-emerald-500/20 border-emerald-500/60 text-emerald-200 ring-1 ring-emerald-500/50'
                       : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
@@ -450,17 +520,18 @@ export function MT5ReportImporterModal({ isOpen, onClose }: Props) {
                 >
                   <div className="font-bold text-emerald-400 flex items-center gap-1.5">
                     <DollarSign className="w-3.5 h-3.5" />
-                    วิธีคิดกระแสเงินสดจริงของคุณ (แนะนำ)
+                    💵 เฉพาะกระแสเงินสดจริง
                   </div>
                   <div className="text-[11px] text-slate-300 mt-1">
-                    บันทึกกำไรจริง <b>+${effectiveCashProfit} USD</b> (ROI +{effectiveROI}%)
+                    กำไรจริง <b>+${effectiveCashProfit} USD</b> (ROI +{effectiveROI}%)
                   </div>
                 </button>
 
+                {/* Option 3: MT5 Board Only */}
                 <button
                   type="button"
                   onClick={() => setSaveMode('mt5_board')}
-                  className={`p-2.5 rounded-lg border text-left text-xs transition-all ${
+                  className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
                     saveMode === 'mt5_board'
                       ? 'bg-indigo-500/20 border-indigo-500/60 text-indigo-200 ring-1 ring-indigo-500/50'
                       : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
@@ -468,10 +539,10 @@ export function MT5ReportImporterModal({ isOpen, onClose }: Props) {
                 >
                   <div className="font-bold text-indigo-400 flex items-center gap-1.5">
                     <TrendingUp className="w-3.5 h-3.5" />
-                    วิธีคิดตามกระดาน MT5
+                    📊 เฉพาะตามกระดาน MT5
                   </div>
                   <div className="text-[11px] text-slate-300 mt-1">
-                    บันทึกกำไรบอร์ด <b>+${report.totalNetProfit} USD</b>
+                    กำไรบอร์ด <b>+${report.totalNetProfit} USD</b> (PF {report.profitFactor})
                   </div>
                 </button>
               </div>
@@ -504,9 +575,11 @@ export function MT5ReportImporterModal({ isOpen, onClose }: Props) {
                   className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs"
                 >
                   <CheckCircle2 className="w-4 h-4 mr-1.5" />
-                  {report.trades.length > 0 
-                    ? `ยืนยันบันทึกทั้ง ${report.trades.length} ไม้` 
-                    : `ยืนยันบันทึกกำไร +$${saveMode === 'cash_flow' ? effectiveCashProfit : report.totalNetProfit} USD`}
+                  {report.trades.length > 0
+                    ? `ยืนยันบันทึกทั้ง ${report.trades.length} ไม้`
+                    : (saveMode === 'both' 
+                        ? 'ยืนยันบันทึกทั้ง 2 แบบ (Hybrid)'
+                        : `ยืนยันบันทึกกำไร +$${saveMode === 'cash_flow' ? effectiveCashProfit : report.totalNetProfit} USD`)}
                 </Button>
               </div>
             </div>
