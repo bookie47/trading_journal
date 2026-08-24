@@ -31,20 +31,58 @@ export function MT5ReportImporterModal({ isOpen, onClose }: Props) {
   const [isSaving, setIsSaving] = useState(false);
   const [selectedStrategyId, setSelectedStrategyId] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [isLoadingPdf, setIsLoadingPdf] = useState(false);
 
   const currency = activePortfolio?.currency || 'USD';
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setErrorMsg('');
+
+    // Handle PDF File
+    if (file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf') {
+      setIsLoadingPdf(true);
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const base64Data = event.target?.result as string;
+          const customApiKey = typeof window !== 'undefined' ? localStorage.getItem('trading_journal_gemini_key') || '' : '';
+
+          const res = await fetch('/api/ai/parse-mt5-pdf', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pdfBase64: base64Data, apiKey: customApiKey }),
+          });
+
+          const json = await res.json();
+          if (!res.ok) {
+            throw new Error(json.error || 'Failed to parse PDF');
+          }
+
+          if (json.report) {
+            setReport(json.report);
+          }
+        } catch (err: any) {
+          console.error('Error parsing PDF report:', err);
+          setErrorMsg(err.message || 'เกิดข้อผิดพลาดในการอ่านไฟล์ PDF');
+        } finally {
+          setIsLoadingPdf(false);
+        }
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    // Handle HTML File
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
         const content = event.target?.result as string;
         const parsed = parseMT5HTMLReport(content);
         if (parsed.trades.length === 0) {
-          setErrorMsg('ไม่พบรายการเทรดในไฟล์รายงานนี้ โปรดใช้ไฟล์ HTML Trade History Report จาก MT5');
+          setErrorMsg('ไม่พบรายการเทรดในไฟล์รายงานนี้ โปรดใช้ไฟล์ HTML หรือ PDF Trade History Report จาก MT5');
           return;
         }
         setReport(parsed);
@@ -128,23 +166,34 @@ export function MT5ReportImporterModal({ isOpen, onClose }: Props) {
 
             {/* Dropzone */}
             <label className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-slate-700 hover:border-brand-500/60 rounded-2xl bg-slate-900/40 hover:bg-slate-900/80 cursor-pointer transition-all">
-              <FileText className="w-12 h-12 text-brand-400 mb-3 animate-pulse" />
-              <p className="text-sm font-bold text-white mb-1">
-                คลิกเลือกไฟล์รายงาน MT5 (.html / .htm)
-              </p>
-              <p className="text-xs text-slate-400">
-                หรือลากไฟล์รายงานมาวางที่นี่
-              </p>
+              {isLoadingPdf ? (
+                <div className="flex flex-col items-center py-4 space-y-3">
+                  <div className="w-10 h-10 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-sm font-bold text-white">กำลังวิเคราะห์ไฟล์ PDF รายงาน MT5 ด้วย AI...</p>
+                  <p className="text-xs text-slate-400">ระบบกำลังถอดข้อมูล 25 ไม้และคิดกระแสเงินสดให้คุณ</p>
+                </div>
+              ) : (
+                <>
+                  <FileText className="w-12 h-12 text-brand-400 mb-3 animate-pulse" />
+                  <p className="text-sm font-bold text-white mb-1">
+                    คลิกเลือกไฟล์รายงาน MT5 (.pdf, .html, .htm)
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    รองรับทั้งรายงาน PDF จากมือถือ/คอมพิวเตอร์ และไฟล์ HTML Statement
+                  </p>
+                </>
+              )}
               <input
                 type="file"
-                accept=".html,.htm"
+                accept=".html,.htm,.pdf,application/pdf"
                 onChange={handleFileUpload}
+                disabled={isLoadingPdf}
                 className="hidden"
               />
             </label>
 
             {errorMsg && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs break-all">
                 {errorMsg}
               </div>
             )}

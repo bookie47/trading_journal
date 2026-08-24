@@ -13,9 +13,13 @@ import { RecentTrades } from '@/components/dashboard/RecentTrades';
 import { Button } from '@/components/ui/Button';
 import { AIScreenshotImporterModal } from '@/components/trades/AIScreenshotImporterModal';
 
+import { MT5ReportImporterModal } from '@/components/trades/MT5ReportImporterModal';
+import { FileText } from 'lucide-react';
+
 export default function DashboardPage() {
   const { activePortfolio, stats, trades, isLoading } = useTrading();
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   return (
     <div className="space-y-6 pb-24 md:pb-12 max-w-7xl mx-auto animate-fade-in">
@@ -31,6 +35,14 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          <Button
+            onClick={() => setIsReportModalOpen(true)}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/25 text-xs sm:text-sm font-semibold"
+          >
+            <FileText className="w-4 h-4 mr-1.5 text-emerald-200" />
+            📄 นำเข้า PDF / รายงาน MT5
+          </Button>
+
           <Button
             onClick={() => setIsAIModalOpen(true)}
             className="bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-500/25 text-xs sm:text-sm font-semibold"
@@ -75,6 +87,12 @@ export default function DashboardPage() {
       <AIScreenshotImporterModal
         isOpen={isAIModalOpen}
         onClose={() => setIsAIModalOpen(false)}
+      />
+
+      {/* MT5 HTML / PDF Report Importer Modal */}
+      <MT5ReportImporterModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
       />
     </div>
   );
