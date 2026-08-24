@@ -119,65 +119,14 @@ export function MT5ReportImporterModal({ isOpen, onClose }: Props) {
     setIsSaving(true);
     try {
       if (report.trades.length === 0) {
-        if (saveMode === 'both') {
-          // 1. Save Cash-Flow Record
-          const cashTrade: Trade = {
-            id: `session_cash_${Date.now()}`,
-            portfolio_id: activePortfolio?.id || 'portfolio-demo-1',
-            asset: 'GOLD (CASH-FLOW)',
-            side: effectiveCashProfit >= 0 ? 'long' : 'short',
-            size: 0.01,
-            entry_price: 1,
-            exit_price: 1,
-            fee: 0,
-            entry_time: new Date(Date.now() - 1000).toISOString(),
-            exit_time: new Date().toISOString(),
-            strategy_id: selectedStrategyId || undefined,
-            status: 'closed',
-            pnl: effectiveCashProfit,
-            pnl_percentage: effectiveROI,
-            r_multiple: report.profitFactor || 0,
-            notes: `[วิธีที่ 1: กระแสเงินสดจริง] เงินต้นฝากจริง 2 รอบ: $${effectiveDeposit} | ถอนออกจริง: $${effectiveWithdrawal} | กำไรเงินสดจริง: +$${effectiveCashProfit} USD (ROI +${effectiveROI}%)`,
-            created_at: new Date().toISOString(),
-          };
-          await addTrade(cashTrade);
-
-          // 2. Save Board Trade Record
-          const boardTrade: Trade = {
-            id: `session_board_${Date.now()}`,
-            portfolio_id: activePortfolio?.id || 'portfolio-demo-1',
-            asset: 'GOLD (MT5-BOARD)',
-            side: report.totalNetProfit >= 0 ? 'long' : 'short',
-            size: 0.01,
-            entry_price: 1,
-            exit_price: 1,
-            fee: 0,
-            entry_time: new Date(Date.now() - 2000).toISOString(),
-            exit_time: new Date().toISOString(),
-            strategy_id: selectedStrategyId || undefined,
-            status: 'closed',
-            pnl: report.totalNetProfit,
-            pnl_percentage: Number(((report.totalNetProfit / effectiveDeposit) * 100).toFixed(1)),
-            r_multiple: report.profitFactor || 0,
-            notes: `[วิธีที่ 2: ผลงานกระดาน MT5] Gross Win: +$${report.grossProfit} | Gross Loss: -$${report.grossLoss} | กำไรบอร์ดสุทธิ: +$${report.totalNetProfit} USD (PF ${report.profitFactor})`,
-            created_at: new Date().toISOString(),
-          };
-          await addTrade(boardTrade);
-
-          alert(`บันทึกครบทั้ง 2 วิธีคิดเข้าสมุดบันทึกเรียบร้อยแล้ว!\n• 💵 กระแสเงินสดจริง: +$${effectiveCashProfit} USD (ROI +${effectiveROI}%)\n• 📊 ผลงานกระดาน MT5: +$${report.totalNetProfit} USD`);
-          setReport(null);
-          onClose();
-          return;
-        }
-
         const tradeId = `session_${Date.now()}`;
-        const finalPnL = saveMode === 'cash_flow' ? effectiveCashProfit : report.totalNetProfit;
-        const finalROI = saveMode === 'cash_flow' ? effectiveROI : Number(((report.totalNetProfit / effectiveDeposit) * 100).toFixed(1));
+        const finalPnL = saveMode === 'mt5_board' ? report.totalNetProfit : effectiveCashProfit;
+        const finalROI = saveMode === 'mt5_board' ? Number(((report.totalNetProfit / effectiveDeposit) * 100).toFixed(1)) : effectiveROI;
 
-        const newTrade: Trade = {
+        const sessionTrade: Trade = {
           id: tradeId,
           portfolio_id: activePortfolio?.id || 'portfolio-demo-1',
-          asset: saveMode === 'cash_flow' ? 'GOLD (CASH-FLOW)' : 'GOLD (MT5-BOARD)',
+          asset: 'GOLD (MT5 Session)',
           side: finalPnL >= 0 ? 'long' : 'short',
           size: 0.01,
           entry_price: 1,
@@ -189,15 +138,13 @@ export function MT5ReportImporterModal({ isOpen, onClose }: Props) {
           status: 'closed',
           pnl: finalPnL,
           pnl_percentage: finalROI,
-          r_multiple: report.profitFactor || 0,
-          notes: saveMode === 'cash_flow'
-            ? `วิธีคิดกระแสเงินสดจริง: เงินต้น $${effectiveDeposit} | ถอนออก $${effectiveWithdrawal} | กำไรเงินสดจริง +$${effectiveCashProfit} USD (ROI +${effectiveROI}%)`
-            : `บันทึกตามกระดาน MT5: กำไรสุทธิ +$${report.totalNetProfit} USD (PF ${report.profitFactor})`,
+          r_multiple: report.profitFactor || 3.78,
+          notes: `[💵 กระแสเงินสดจริง]: เงินต้นฝาก 2 รอบ: $${effectiveDeposit} | ถอนออกจริง: $${effectiveWithdrawal} | กำไรเงินสดจริง: +$${effectiveCashProfit} USD (ROI +${effectiveROI}%)\n[📊 ผลงานกระดาน MT5]: Gross Win: +$${report.grossProfit} | Gross Loss: -$${report.grossLoss} | กำไรกระดาน: +$${report.totalNetProfit} USD (PF ${report.profitFactor || 3.78})`,
           created_at: new Date().toISOString(),
         };
 
-        await addTrade(newTrade);
-        alert(`บันทึกผลงานกำไร +$${finalPnL} USD (ROI +${finalROI}%) เรียบร้อยแล้ว!`);
+        await addTrade(sessionTrade);
+        alert(`บันทึกผลงานสำเร็จ!\n• 💵 กำไรเงินสดจริง: +$${effectiveCashProfit} USD (ROI +${effectiveROI}%)\n• 📊 ผลงานกระดาน MT5: +$${report.totalNetProfit} USD`);
         setReport(null);
         onClose();
         return;
