@@ -133,12 +133,6 @@ Respond ONLY with valid JSON in this exact structure without markdown backticks:
 
       if (!parsed || !Array.isArray(parsed.trades)) {
         console.error(`Failed to parse image #${imgIdx + 1}:`, lastErrorText);
-        if (images.length === 1) {
-          return NextResponse.json(
-            { error: `ไม่สามารถสแกนภาพได้ (${lastErrorText.slice(0, 150)}) โปรดตรวจสอบ API Key` },
-            { status: 400 }
-          );
-        }
         continue;
       }
 
@@ -189,6 +183,15 @@ Respond ONLY with valid JSON in this exact structure without markdown backticks:
     // -------------------------------------------------------------
     // Smart Deduplication Engine
     // -------------------------------------------------------------
+    if (allParsedCandidates.length === 0) {
+      return NextResponse.json(
+        { 
+          error: 'AI ไม่สามารถอ่านรายการเทรดจากรูปภาพได้ โปรดเพิ่ม GEMINI_API_KEY ใน Vercel Environment Variables' 
+        }, 
+        { status: 400 }
+      );
+    }
+
     const seenBatchKeys = new Set<string>();
     const deduplicatedResults: ParsedTradeCandidate[] = [];
 

@@ -30,18 +30,52 @@ interface AIScreenshotImporterModalProps {
   onClose: () => void;
 }
 
+function compressImage(file: File, maxDim = 1200, quality = 0.85): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = reject;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let width = img.width;
+      let height = img.height;
+
+      if (width > height) {
+        if (width > maxDim) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        }
+      } else {
+        if (height > maxDim) {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(img.src);
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 export function AIScreenshotImporterModal({ isOpen, onClose }: AIScreenshotImporterModalProps) {
   const { strategies, activePortfolio, addTrade } = useTrading();
   const currency = activePortfolio?.currency || 'USD';
 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
-  const [apiKey, setApiKey] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('trading_journal_gemini_key') || '';
-    }
-    return '';
-  });
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<{
     totalParsed: number;
@@ -72,13 +106,6 @@ export function AIScreenshotImporterModal({ isOpen, onClose }: AIScreenshotImpor
     setPreviews(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSaveApiKey = (val: string) => {
-    setApiKey(val);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('trading_journal_gemini_key', val);
-    }
-  };
-
   const handleStartScan = async () => {
     if (selectedFiles.length === 0) {
       setErrorMsg('กรุณาเลือกรูปภาพอย่างน้อย 1 รูป');
@@ -90,16 +117,9 @@ export function AIScreenshotImporterModal({ isOpen, onClose }: AIScreenshotImpor
     setScanResult(null);
 
     try {
-      // Convert all files to base64
+      // Compress and convert all files to optimized base64
       const base64List: string[] = await Promise.all(
-        selectedFiles.map(file => {
-          return new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-          });
-        })
+        selectedFiles.map(file => compressImage(file))
       );
 
       const res = await fetch('/api/ai/parse-trade-screenshot', {
@@ -107,7 +127,6 @@ export function AIScreenshotImporterModal({ isOpen, onClose }: AIScreenshotImpor
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           images: base64List,
-          apiKey: apiKey || undefined,
           portfolioId: activePortfolio?.id,
         }),
       });
@@ -128,7 +147,7 @@ export function AIScreenshotImporterModal({ isOpen, onClose }: AIScreenshotImpor
         })),
       });
     } catch (err: any) {
-      setErrorMsg(err.message || 'ไม่สามารถสแกนรูปภาพได้ โปรดตรวจสอบ API Key หรือลองใหม่อีกครั้ง');
+      setErrorMsg(err.message || 'ไม่สามารถสแกนรูปภาพได้ โปรดตรวจสอบการเชื่อมต่อหรือลองใหม่อีกครั้ง');
     } finally {
       setIsScanning(false);
     }
@@ -293,23 +312,6 @@ export function AIScreenshotImporterModal({ isOpen, onClose }: AIScreenshotImpor
               </div>
             )}
 
-            {/* Optional Gemini API Key */}
-            <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs">
-              <div className="flex items-center gap-2 mb-1.5 text-slate-300 font-medium">
-                <Key className="w-3.5 h-3.5 text-amber-400" />
-                <span>Google Gemini API Key (ฟรี):</span>
-              </div>
-              <input
-                type="password"
-                placeholder="AIzaSy... (หากเว้นว่างไว้จะใช้ Key เริ่มต้นของระบบ)"
-                value={apiKey}
-                onChange={(e) => handleSaveApiKey(e.target.value)}
-                className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand-500"
-              />
-              <p className="text-[11px] text-slate-500 mt-1">
-                รับ API Key ฟรีได้ที่ <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-brand-400 underline">Google AI Studio</a>
-              </p>
-            </div>
 
             {errorMsg && (
               <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
