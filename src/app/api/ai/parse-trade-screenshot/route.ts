@@ -85,8 +85,13 @@ Respond ONLY with valid JSON in this exact structure without markdown backticks:
       let parsed: any = null;
       let lastErrorText = '';
 
-      // Try gemini-1.5-flash first, fallback to gemini-2.0-flash, gemini-1.5-pro
-      const modelsToTry = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
+      // Active standard Google AI Studio models
+      const modelsToTry = [
+        'gemini-2.0-flash',
+        'gemini-1.5-flash',
+        'gemini-2.0-flash-lite',
+        'gemini-1.5-flash-8b'
+      ];
 
       for (const modelName of modelsToTry) {
         try {
@@ -127,7 +132,7 @@ Respond ONLY with valid JSON in this exact structure without markdown backticks:
           // Strip potential markdown ```json ... ``` blocks
           rawContent = rawContent.replace(/```json/gi, '').replace(/```/g, '').trim();
           parsed = JSON.parse(rawContent);
-          if (parsed && Array.isArray(parsed.trades) && parsed.trades.length > 0) {
+          if (parsed && Array.isArray(parsed.trades)) {
             break; // Successfully parsed!
           }
         } catch (mErr: any) {
