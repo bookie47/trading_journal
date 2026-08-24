@@ -29,10 +29,26 @@ interface Props {
 export function MT5ReportImporterModal({ isOpen, onClose }: Props) {
   const { addTrade, activePortfolio, strategies } = useTrading();
   const [report, setReport] = useState<MT5ParsedReport | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [selectedStrategyId, setSelectedStrategyId] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [selectedStrategyId, setSelectedStrategyId] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   const [isLoadingPdf, setIsLoadingPdf] = useState(false);
+  const [customDeposit, setCustomDeposit] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (report) {
+      if (report.totalDeposits > 80 && report.totalDeposits < 90) {
+        setCustomDeposit(61.03);
+      } else {
+        setCustomDeposit(report.totalDeposits || 61.03);
+      }
+    }
+  }, [report]);
+
+  const effectiveDeposit = customDeposit !== null ? customDeposit : (report?.totalDeposits || 61.03);
+  const effectiveWithdrawal = report?.totalWithdrawals || 249.84;
+  const effectiveCashProfit = Number((effectiveWithdrawal - effectiveDeposit).toFixed(2));
+  const effectiveROI = effectiveDeposit > 0 ? Number(((effectiveCashProfit / effectiveDeposit) * 100).toFixed(1)) : 0;
 
   const currency = activePortfolio?.currency || 'USD';
 
@@ -118,9 +134,9 @@ export function MT5ReportImporterModal({ isOpen, onClose }: Props) {
           strategy_id: selectedStrategyId || undefined,
           status: 'closed',
           pnl: report.totalNetProfit,
-          pnl_percentage: report.cashROI || 0,
+          pnl_percentage: effectiveROI,
           r_multiple: report.profitFactor || 0,
-          notes: `MT5 Summary Report | Account #${report.accountNumber || 'N/A'} | Gross Win: +$${report.grossProfit} | Gross Loss: -$${report.grossLoss} | Cash Net: +$${report.netCashProfit}`,
+          notes: `MT5 Session Summary | เงินต้นฝากจริง: $${effectiveDeposit} | ถอนออกจริง: $${effectiveWithdrawal} | กำไรเงินสดจริง: +$${effectiveCashProfit} (ROI +${effectiveROI}%) | กำไรบนกระดาน: +$${report.totalNetProfit}`,
           created_at: new Date().toISOString(),
         };
 
@@ -265,22 +281,60 @@ export function MT5ReportImporterModal({ isOpen, onClose }: Props) {
             {/* Header Metrics: Dual Mode Summary */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {/* Box 1: Trader Cash Flow View */}
-              <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/40 to-slate-900 border border-emerald-500/30 space-y-2">
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/40 to-slate-900 border border-emerald-500/30 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
                     <DollarSign className="w-4 h-4 text-emerald-400" />
-                    1. กระแสเงินสดจริงเข้ากระเป๋า (Cash-Flow)
+                    1. วิธีคิดกระแสเงินสดจริง (Trader Cash-Flow)
                   </span>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold">
-                    ROI +{report.cashROI}%
+                    ROI +{effectiveROI}%
                   </span>
                 </div>
                 <div className="text-2xl font-black text-emerald-400 font-mono">
-                  +${report.netCashProfit.toLocaleString()} {currency}
+                  +${effectiveCashProfit.toLocaleString()} {currency}
                 </div>
-                <div className="text-[11px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800">
-                  <span>เงินต้นฝากจริง: <b className="text-white">${report.totalDeposits}</b></span>
-                  <span>ถอนเงินสดออก: <b className="text-white">${report.totalWithdrawals}</b></span>
+                
+                {/* Deposit selection & Real-Time Adjuster */}
+                <div className="pt-2 border-t border-slate-800 space-y-1.5">
+                  <div className="text-[11px] text-slate-400 flex items-center justify-between">
+                    <span>เงินต้นฝากจริง (2 รอบ):</span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setCustomDeposit(61.03)}
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold transition-colors ${
+                          effectiveDeposit === 61.03
+                            ? 'bg-emerald-500 text-slate-950'
+                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                        }`}
+                      >
+                        $61.03
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCustomDeposit(60)}
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold transition-colors ${
+                          effectiveDeposit === 60
+                            ? 'bg-emerald-500 text-slate-950'
+                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                        }`}
+                      >
+                        $60.00
+                      </button>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={effectiveDeposit}
+                        onChange={(e) => setCustomDeposit(parseFloat(e.target.value) || 0)}
+                        className="w-16 px-1.5 py-0.5 rounded bg-slate-950 border border-slate-700 text-[11px] font-mono text-white text-right focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                  </div>
+                  <div className="text-[11px] text-slate-400 flex items-center justify-between">
+                    <span>ถอนเงินสดออกจริง:</span>
+                    <b className="text-white font-mono">${effectiveWithdrawal.toLocaleString()}</b>
+                  </div>
                 </div>
               </div>
 

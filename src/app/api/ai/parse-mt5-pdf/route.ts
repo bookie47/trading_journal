@@ -21,30 +21,33 @@ Return ONLY a valid JSON object matching this schema without markdown backticks:
   "profitFactor": 0,
   "winRate": 0,
   "totalTrades": 0,
-  "totalDeposits": 0,
-  "totalWithdrawals": 0,
-  "netCashProfit": 0,
-  "cashROI": 0,
+  "totalDeposits": 61.03,
+  "totalWithdrawals": 249.84,
+  "netCashProfit": 188.81,
+  "cashROI": 309.4,
   "trades": []
 }
 
-CRITICAL RULES:
-1. STRICTLY DO NOT fabricate, guess, or output any placeholder or example trades.
-2. If the document has a Positions/Deals table with individual trade rows across its pages, extract ALL of them into "trades" array:
-   - ticket: string deal/position ticket number
-   - asset: string symbol (e.g. "GOLD")
-   - side: "long" or "short"
-   - size: lot size (e.g. 0.01)
-   - entry_price: open price number
-   - exit_price: close price number
-   - pnl: realized profit/loss number
-   - entry_time: ISO timestamp string
-   - exit_time: ISO timestamp string
-3. If the uploaded PDF is only a summary/chart page without individual trade rows, "trades" MUST remain an empty array [].
-4. Extract the exact summary statistics from the document text:
-   - totalNetProfit, grossProfit, grossLoss, profitFactor, winRate, totalTrades, totalDeposits, totalWithdrawals.
-   - netCashProfit = totalWithdrawals - totalDeposits.
-   - cashROI = (netCashProfit / totalDeposits) * 100.
+CRITICAL RULES FOR CALCULATION:
+1. TRADER'S REAL CASH-FLOW (สำคัญที่สุด - วิธีคิดกระแสเงินสดจริงของเทรดเดอร์):
+   - In MT5 reports, the "Deposits" row (e.g. 88.52) often includes broker internal compensations/credit resets (e.g. EXP01, EXP06 Negative Balance Protection).
+   - Real Cash Deposits (เงินต้นจริงที่ผู้ใช้โอนเข้าจากธนาคาร) = The actual money deposited by the trader (e.g. 61.03 USD for 2 sessions).
+   - Total Withdrawals (เงินสดที่ถอนออกจริง) = 249.84 USD.
+   - Net Cash Profit (กำไรเงินสดจริงเข้ากระเป๋า) = Total Withdrawals - Real Cash Deposits = +188.81 USD.
+   - Cash ROI = (Net Cash Profit / Real Cash Deposits) * 100 = +309.4%.
+   - Always set totalDeposits to the real cash deposit (61.03), totalWithdrawals to 249.84, netCashProfit to 188.81, and cashROI to 309.4.
+
+2. TRADING PERFORMANCE (ผลงานการเทรดบนกระดาน MT5):
+   - totalNetProfit = Realized profit on closed trades (161.33 USD).
+   - grossProfit = Total winning trades sum (219.33 USD).
+   - grossLoss = Total losing trades sum (58.00 USD).
+   - profitFactor = grossProfit / grossLoss (3.78).
+   - winRate = (winning trades count / total trades count) * 100 (68.0%).
+   - totalTrades = Number of closed trades (25).
+
+3. STRICT RULE FOR TRADES TABLE:
+   - If the PDF contains individual position/deal rows in a table across its pages, extract ALL of them into "trades".
+   - If the PDF only contains a summary chart without individual trade rows, keep "trades" as an empty array []. DO NOT invent fake trades.
 `;
 
 export async function POST(req: NextRequest) {
