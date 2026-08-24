@@ -85,12 +85,17 @@ Respond ONLY with valid JSON in this exact structure without markdown backticks:
       let parsed: any = null;
       let lastErrorText = '';
 
-      // Active standard Google AI Studio models
+      // Active Google AI Studio models. "-latest" aliases auto-track whatever
+      // Google currently considers current, so this list doesn't need to be
+      // hand-updated every time an old dated model (e.g. gemini-2.0-flash,
+      // retired 2026-06-01) gets shut down. Pinned versions are kept as a
+      // fallback in case an alias is temporarily unavailable.
       const modelsToTry = [
-        'gemini-2.0-flash',
-        'gemini-1.5-flash',
-        'gemini-2.0-flash-lite',
-        'gemini-1.5-flash-8b'
+        'gemini-flash-latest',
+        'gemini-flash-lite-latest',
+        'gemini-2.5-flash',
+        'gemini-2.5-flash-lite',
+        'gemini-2.5-pro',
       ];
 
       for (const modelName of modelsToTry) {
