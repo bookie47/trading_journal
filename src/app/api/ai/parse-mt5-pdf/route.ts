@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const MODELS_TO_TRY = [
   'gemini-2.0-flash',
-  'gemini-1.5-flash',
-  'gemini-1.5-flash-latest',
-  'gemini-1.5-flash-8b'
+  'gemini-1.5-flash'
 ];
 
 const PDF_PROMPT = `
@@ -67,7 +65,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const cleanBase64 = pdfBase64.replace(/^data:application\/pdf;base64,/, '').replace(/[\r\n\s]/g, '');
+    let cleanBase64 = pdfBase64;
+    if (pdfBase64.includes(';base64,')) {
+      cleanBase64 = pdfBase64.split(';base64,')[1];
+    }
+    cleanBase64 = cleanBase64.replace(/[\r\n\s]/g, '');
 
     let parsed: any = null;
     let lastErrorText = '';
