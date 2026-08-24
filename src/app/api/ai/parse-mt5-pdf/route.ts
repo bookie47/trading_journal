@@ -6,46 +6,45 @@ import { NextRequest, NextResponse } from 'next/server';
 const MODELS_TO_TRY = ['gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-flash-latest'];
 
 const PDF_PROMPT = `
-You are an expert financial analyst parsing an official MetaTrader 5 (MT5) Statement Report in PDF format.
-Analyze this PDF document thoroughly and extract the exact summary statistics, cash-flow metrics, and all closed positions/deals.
+You are an expert financial OCR parser for MetaTrader 5 (MT5) Statement Reports in PDF format.
+Analyze the provided PDF document thoroughly and extract ONLY real numbers and closed trades actually found in this document.
 
-Return ONLY a valid JSON object matching this exact schema without markdown backticks:
+Return ONLY a valid JSON object matching this schema without markdown backticks:
 {
-  "accountName": "Saranyapong Phoksawas",
-  "accountNumber": "391419383",
-  "broker": "XM Global Limited",
+  "accountName": null,
+  "accountNumber": null,
+  "broker": null,
   "currency": "USD",
-  "totalNetProfit": 161.33,
-  "grossProfit": 219.33,
-  "grossLoss": 58.00,
-  "profitFactor": 3.78,
-  "winRate": 68.0,
-  "totalTrades": 25,
-  "totalDeposits": 61.03,
-  "totalWithdrawals": 249.84,
-  "netCashProfit": 188.81,
-  "cashROI": 309.4,
-  "trades": [
-    {
-      "ticket": "228631257",
-      "asset": "GOLD",
-      "side": "long",
-      "size": 0.01,
-      "entry_price": 4656.59,
-      "exit_price": 4650.71,
-      "pnl": -5.88,
-      "entry_time": "2026-08-24T15:01:04.000Z",
-      "exit_time": "2026-08-24T15:32:53.000Z"
-    }
-  ]
+  "totalNetProfit": 0,
+  "grossProfit": 0,
+  "grossLoss": 0,
+  "profitFactor": 0,
+  "winRate": 0,
+  "totalTrades": 0,
+  "totalDeposits": 0,
+  "totalWithdrawals": 0,
+  "netCashProfit": 0,
+  "cashROI": 0,
+  "trades": []
 }
 
 CRITICAL RULES:
-1. Ensure all closed trade positions from the Positions / Deals table are extracted accurately.
-2. In MT5, user deposits are often listed as CD-... and adjustments EXP... Total real cash deposits for 2 rounds of ~$30 = $61.03 (or the total cash deposited by the user).
-3. Total withdrawals = 249.84.
-4. Net Cash Profit = Total Withdrawals - Real Cash Deposits = 188.81 USD.
-5. All trade pnls must match the report exactly.
+1. STRICTLY DO NOT fabricate, guess, or output any placeholder or example trades.
+2. If the document has a Positions/Deals table with individual trade rows across its pages, extract ALL of them into "trades" array:
+   - ticket: string deal/position ticket number
+   - asset: string symbol (e.g. "GOLD")
+   - side: "long" or "short"
+   - size: lot size (e.g. 0.01)
+   - entry_price: open price number
+   - exit_price: close price number
+   - pnl: realized profit/loss number
+   - entry_time: ISO timestamp string
+   - exit_time: ISO timestamp string
+3. If the uploaded PDF is only a summary/chart page without individual trade rows, "trades" MUST remain an empty array [].
+4. Extract the exact summary statistics from the document text:
+   - totalNetProfit, grossProfit, grossLoss, profitFactor, winRate, totalTrades, totalDeposits, totalWithdrawals.
+   - netCashProfit = totalWithdrawals - totalDeposits.
+   - cashROI = (netCashProfit / totalDeposits) * 100.
 `;
 
 export async function POST(req: NextRequest) {
@@ -116,7 +115,8 @@ export async function POST(req: NextRequest) {
           parsed = parsed.report;
         }
 
-        if (parsed && Array.isArray(parsed.trades) && parsed.trades.length > 0) {
+        if (parsed && (Array.isArray(parsed.trades) || typeof parsed.totalNetProfit === 'number')) {
+          if (!Array.isArray(parsed.trades)) parsed.trades = [];
           break;
         }
       } catch (err: any) {
@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (!parsed || !Array.isArray(parsed.trades) || parsed.trades.length === 0) {
+    if (!parsed) {
       return NextResponse.json(
         { error: `ไม่สามารถอ่านข้อมูลจาก PDF ได้: ${lastErrorText.slice(0, 200)}` },
         { status: 400 }
