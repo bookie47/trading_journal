@@ -139,3 +139,34 @@ export interface TradeFilters {
   asset: string;
   timeRange: 'all' | 'today' | 'this_week' | 'this_month' | 'last_30_days' | 'this_year';
 }
+
+export interface ParsedTradeCandidate {
+  id?: string;
+  ticket?: number | string;
+  asset: string;
+  side: TradeSide;
+  size: number;
+  entry_price: number;
+  exit_price?: number;
+  sl?: number;
+  tp?: number;
+  pnl: number;
+  pnl_percentage?: number;
+  fee?: number;
+  entry_time: string;
+  exit_time?: string;
+  notes?: string;
+  isDuplicate?: boolean;
+  duplicateReason?: string;
+  sourceImageIndex?: number;
+}
+
+export interface AIParseResponse {
+  success: boolean;
+  totalParsed: number;
+  newCount: number;
+  duplicateCount: number;
+  trades: ParsedTradeCandidate[];
+  error?: string;
+}
+

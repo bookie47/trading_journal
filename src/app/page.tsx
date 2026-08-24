@@ -1,8 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { PlusCircle, Sparkles, AlertCircle } from 'lucide-react';
+import { PlusCircle, Sparkles, AlertCircle, Camera } from 'lucide-react';
 import { useTrading } from '@/lib/context/trading-context';
 import { StatCards } from '@/components/dashboard/StatCards';
 import { EquityCurveChart } from '@/components/dashboard/EquityCurveChart';
@@ -11,9 +11,11 @@ import { AssetDistributionChart } from '@/components/dashboard/AssetDistribution
 import { DayOfWeekChart } from '@/components/dashboard/DayOfWeekChart';
 import { RecentTrades } from '@/components/dashboard/RecentTrades';
 import { Button } from '@/components/ui/Button';
+import { AIScreenshotImporterModal } from '@/components/trades/AIScreenshotImporterModal';
 
 export default function DashboardPage() {
   const { activePortfolio, stats, trades, isLoading } = useTrading();
+  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
 
   return (
     <div className="space-y-6 pb-24 md:pb-12 max-w-7xl mx-auto animate-fade-in">
@@ -28,7 +30,15 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            onClick={() => setIsAIModalOpen(true)}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-500/25 text-xs sm:text-sm font-semibold"
+          >
+            <Camera className="w-4 h-4 mr-1.5 text-indigo-200" />
+            📸 นำเข้าจากรูป (AI OCR)
+          </Button>
+
           <Link href="/trades/new" className="w-full sm:w-auto">
             <Button className="w-full sm:w-auto shadow-brand-500/25">
               <PlusCircle className="w-4 h-4 mr-2" />
@@ -60,6 +70,12 @@ export default function DashboardPage() {
         <DayOfWeekChart />
         <RecentTrades />
       </div>
+
+      {/* AI Multi-Screenshot Importer Modal */}
+      <AIScreenshotImporterModal
+        isOpen={isAIModalOpen}
+        onClose={() => setIsAIModalOpen(false)}
+      />
     </div>
   );
 }

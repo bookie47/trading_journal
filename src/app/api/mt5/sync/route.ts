@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Trade, TradeSide, TradeStatus } from '@/lib/types';
+import { Portfolio, Trade, TradeSide, TradeStatus } from '@/lib/types';
 import { ServerTradingRepository } from '@/lib/storage/server';
 import { calculatePnL, calculateRMultiple } from '@/lib/calculations';
 

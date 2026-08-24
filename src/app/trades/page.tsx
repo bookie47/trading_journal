@@ -19,6 +19,8 @@ import { TradeTable } from '@/components/trades/TradeTable';
 import { TradeCardList } from '@/components/trades/TradeCardList';
 import { CloseTradeModal } from '@/components/trades/CloseTradeModal';
 import { TradeDetailModal } from '@/components/trades/TradeDetailModal';
+import { AIScreenshotImporterModal } from '@/components/trades/AIScreenshotImporterModal';
+import { Camera, Sparkles } from 'lucide-react';
 
 export default function TradeHistoryPage() {
   const { 
@@ -36,6 +38,7 @@ export default function TradeHistoryPage() {
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
   const [closingTrade, setClosingTrade] = useState<Trade | null>(null);
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
+  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
 
   // List of unique assets for quick filter dropdown
   const uniqueAssets = useMemo(() => {
@@ -59,7 +62,7 @@ export default function TradeHistoryPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           {trades.length > 0 && (
             <Button
               variant="danger"
@@ -72,9 +75,17 @@ export default function TradeHistoryPage() {
               className="text-xs bg-rose-600/20 text-rose-300 border border-rose-500/40 hover:bg-rose-600 hover:text-white"
             >
               <RotateCcw className="w-3.5 h-3.5 mr-1" />
-              ลบข้อมูล Demo ทั้งหมด
+              ล้างประวัติ
             </Button>
           )}
+
+          <Button
+            onClick={() => setIsAIModalOpen(true)}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-500/25 text-xs sm:text-sm font-semibold"
+          >
+            <Camera className="w-4 h-4 mr-1.5 text-indigo-200" />
+            📸 นำเข้าจากรูป (AI OCR)
+          </Button>
 
           <Link href="/trades/new" className="w-full sm:w-auto">
             <Button className="w-full sm:w-auto shadow-brand-500/25">
@@ -263,6 +274,12 @@ export default function TradeHistoryPage() {
           }}
         />
       )}
+
+      {/* AI Multi-Screenshot Importer Modal */}
+      <AIScreenshotImporterModal
+        isOpen={isAIModalOpen}
+        onClose={() => setIsAIModalOpen(false)}
+      />
     </div>
   );
 }
