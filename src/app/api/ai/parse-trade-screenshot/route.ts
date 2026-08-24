@@ -5,47 +5,22 @@ import { ParsedTradeCandidate, TradeSide } from '@/lib/types';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Allow up to 60s for multi-image vision analysis
 
-export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const { images, apiKey: customApiKey, portfolioId } = body;
+// Per-Gemini-call budget. Images are processed concurrently and each image
+// tries at most MODELS_TO_TRY.length models, so worst-case wall time for the
+// whole request is bounded by GEMINI_CALL_TIMEOUT_MS * MODELS_TO_TRY.length
+// regardless of how many images are in the batch — otherwise a large batch
+// (or a single hung upstream call) blows past maxDuration and Vercel returns
+// a 504 before we ever get a response back.
+const GEMINI_CALL_TIMEOUT_MS = 15000;
 
-    if (!images || !Array.isArray(images) || images.length === 0) {
-      return NextResponse.json({ error: 'No images provided' }, { status: 400 });
-    }
+// Active Google AI Studio models. "-latest" tracks whatever Google currently
+// considers current, so this list doesn't need to be hand-updated every time
+// an old dated model (e.g. gemini-2.0-flash, retired 2026-06-01) gets shut
+// down. gemini-2.5-flash is kept as a pinned fallback in case the alias is
+// temporarily unavailable.
+const MODELS_TO_TRY = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
 
-    const rawKey = customApiKey || process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
-    const apiKey = rawKey.trim().replace(/^["']|["']$/g, '');
-
-    if (!apiKey) {
-      return NextResponse.json(
-        { 
-          error: 'Gemini API Key is required. Please add GEMINI_API_KEY in Vercel Environment Variables.' 
-        }, 
-        { status: 401 }
-      );
-    }
-
-    const targetPortfolioId = portfolioId || ServerTradingRepository.getActivePortfolioId() || 'portfolio-demo-1';
-    const existingTrades = await ServerTradingRepository.getTrades(targetPortfolioId);
-
-    const allParsedCandidates: ParsedTradeCandidate[] = [];
-
-    // Process each image with Gemini Vision
-    let lastErrorSummary = '';
-    for (let imgIdx = 0; imgIdx < images.length; imgIdx++) {
-      const rawImage = images[imgIdx];
-      let base64Data = rawImage;
-      let mimeType = 'image/jpeg';
-
-      if (rawImage.includes(';base64,')) {
-        const parts = rawImage.split(';base64,');
-        mimeType = parts[0].replace('data:', '') || 'image/jpeg';
-        base64Data = parts[1];
-      }
-      base64Data = base64Data.replace(/[\r\n\s]/g, '');
-
-      const promptText = `
+const PROMPT_TEXT = `
 You are an expert financial OCR assistant specializing in MetaTrader 5 (MT5) mobile app (iOS and Android) trade history screenshots.
 Analyze this screenshot carefully and extract ALL completed trading deals (BUY / SELL trades).
 
@@ -82,124 +57,161 @@ Respond ONLY with valid JSON in this exact structure without markdown backticks:
 }
 `;
 
-      let parsed: any = null;
-      let lastErrorText = '';
+async function processImage(
+  rawImage: string,
+  imgIdx: number,
+  apiKey: string
+): Promise<{ candidates: ParsedTradeCandidate[]; errorText: string }> {
+  let base64Data = rawImage;
+  let mimeType = 'image/jpeg';
 
-      // Active Google AI Studio models. "-latest" aliases auto-track whatever
-      // Google currently considers current, so this list doesn't need to be
-      // hand-updated every time an old dated model (e.g. gemini-2.0-flash,
-      // retired 2026-06-01) gets shut down. Pinned versions are kept as a
-      // fallback in case an alias is temporarily unavailable.
-      const modelsToTry = [
-        'gemini-flash-latest',
-        'gemini-flash-lite-latest',
-        'gemini-2.5-flash',
-        'gemini-2.5-flash-lite',
-        'gemini-2.5-pro',
-      ];
+  if (rawImage.includes(';base64,')) {
+    const parts = rawImage.split(';base64,');
+    mimeType = parts[0].replace('data:', '') || 'image/jpeg';
+    base64Data = parts[1];
+  }
+  base64Data = base64Data.replace(/[\r\n\s]/g, '');
 
-      for (const modelName of modelsToTry) {
-        try {
-          const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey.trim()}`;
-          const response = await fetch(geminiEndpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [
+  let parsed: any = null;
+  let lastErrorText = '';
+
+  for (const modelName of MODELS_TO_TRY) {
+    try {
+      const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey.trim()}`;
+      const response = await fetch(geminiEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(GEMINI_CALL_TIMEOUT_MS),
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { text: PROMPT_TEXT },
                 {
-                  parts: [
-                    { text: promptText },
-                    {
-                      inlineData: {
-                        mimeType: mimeType,
-                        data: base64Data,
-                      },
-                    },
-                  ],
+                  inlineData: {
+                    mimeType: mimeType,
+                    data: base64Data,
+                  },
                 },
               ],
-              generationConfig: {
-                temperature: 0.1,
-                responseMimeType: 'application/json',
-              },
-            }),
-          });
+            },
+          ],
+          generationConfig: {
+            temperature: 0.1,
+            responseMimeType: 'application/json',
+          },
+        }),
+      });
 
-          if (!response.ok) {
-            lastErrorText = await response.text();
-            console.warn(`Gemini model ${modelName} returned status ${response.status}:`, lastErrorText);
-            continue;
-          }
-
-          const data = await response.json();
-          let rawContent = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-          
-          // Strip potential markdown ```json ... ``` blocks
-          rawContent = rawContent.replace(/```json/gi, '').replace(/```/g, '').trim();
-          parsed = JSON.parse(rawContent);
-          if (parsed && Array.isArray(parsed.trades)) {
-            break; // Successfully parsed!
-          }
-        } catch (mErr: any) {
-          lastErrorText = mErr.message || String(mErr);
-        }
-      }
-
-      if (!parsed || !Array.isArray(parsed.trades)) {
-        lastErrorSummary = lastErrorText;
-        console.error(`Failed to parse image #${imgIdx + 1}:`, lastErrorText);
+      if (!response.ok) {
+        lastErrorText = await response.text();
+        console.warn(`Gemini model ${modelName} returned status ${response.status}:`, lastErrorText);
         continue;
       }
 
-      for (const item of parsed.trades) {
-        const side: TradeSide = 
-          String(item.side).toUpperCase().includes('BUY') ? 'long' : 'short';
+      const data = await response.json();
+      let rawContent = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
 
-        let entryTimeISO = new Date().toISOString();
-        if (item.open_time) {
-          const parsedDate = new Date(String(item.open_time).replace(/\./g, '-'));
-          if (!isNaN(parsedDate.getTime())) {
-            entryTimeISO = parsedDate.toISOString();
-          }
-        }
+      // Strip potential markdown ```json ... ``` blocks
+      rawContent = rawContent.replace(/```json/gi, '').replace(/```/g, '').trim();
+      parsed = JSON.parse(rawContent);
+      if (parsed && Array.isArray(parsed.trades)) {
+        break; // Successfully parsed!
+      }
+    } catch (mErr: any) {
+      lastErrorText = mErr.name === 'TimeoutError' ? `${modelName} timed out` : mErr.message || String(mErr);
+    }
+  }
 
-        let exitTimeISO = entryTimeISO;
-        if (item.close_time) {
-          const parsedDate = new Date(String(item.close_time).replace(/\./g, '-'));
-          if (!isNaN(parsedDate.getTime())) {
-            exitTimeISO = parsedDate.toISOString();
-          }
-        }
+  if (!parsed || !Array.isArray(parsed.trades)) {
+    console.error(`Failed to parse image #${imgIdx + 1}:`, lastErrorText);
+    return { candidates: [], errorText: lastErrorText };
+  }
 
-        allParsedCandidates.push({
-          ticket: item.ticket || undefined,
-          asset: String(item.symbol || 'GOLD').replace(/\.raw|\.pro|\.m|\.a|\.s/gi, '').toUpperCase(),
-          side,
-          size: Number(item.lots || 0.01),
-          entry_price: Number(item.open_price || item.price || 0),
-          exit_price: item.close_price ? Number(item.close_price) : undefined,
-          sl: item.sl ? Number(item.sl) : undefined,
-          tp: item.tp ? Number(item.tp) : undefined,
-          pnl: Number(item.profit || 0),
-          fee: Number(item.fee || 0),
-          entry_time: entryTimeISO,
-          exit_time: exitTimeISO,
-          sourceImageIndex: imgIdx + 1,
-          notes: `AI Scanned from Screenshot #${imgIdx + 1}${item.ticket ? ` | Ticket #${item.ticket}` : ''}`,
-        });
+  const candidates: ParsedTradeCandidate[] = parsed.trades.map((item: any) => {
+    const side: TradeSide = String(item.side).toUpperCase().includes('BUY') ? 'long' : 'short';
+
+    let entryTimeISO = new Date().toISOString();
+    if (item.open_time) {
+      const parsedDate = new Date(String(item.open_time).replace(/\./g, '-'));
+      if (!isNaN(parsedDate.getTime())) {
+        entryTimeISO = parsedDate.toISOString();
       }
     }
+
+    let exitTimeISO = entryTimeISO;
+    if (item.close_time) {
+      const parsedDate = new Date(String(item.close_time).replace(/\./g, '-'));
+      if (!isNaN(parsedDate.getTime())) {
+        exitTimeISO = parsedDate.toISOString();
+      }
+    }
+
+    return {
+      ticket: item.ticket || undefined,
+      asset: String(item.symbol || 'GOLD').replace(/\.raw|\.pro|\.m|\.a|\.s/gi, '').toUpperCase(),
+      side,
+      size: Number(item.lots || 0.01),
+      entry_price: Number(item.open_price || item.price || 0),
+      exit_price: item.close_price ? Number(item.close_price) : undefined,
+      sl: item.sl ? Number(item.sl) : undefined,
+      tp: item.tp ? Number(item.tp) : undefined,
+      pnl: Number(item.profit || 0),
+      fee: Number(item.fee || 0),
+      entry_time: entryTimeISO,
+      exit_time: exitTimeISO,
+      sourceImageIndex: imgIdx + 1,
+      notes: `AI Scanned from Screenshot #${imgIdx + 1}${item.ticket ? ` | Ticket #${item.ticket}` : ''}`,
+    };
+  });
+
+  return { candidates, errorText: '' };
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { images, apiKey: customApiKey, portfolioId } = body;
+
+    if (!images || !Array.isArray(images) || images.length === 0) {
+      return NextResponse.json({ error: 'No images provided' }, { status: 400 });
+    }
+
+    const rawKey = customApiKey || process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
+    const apiKey = rawKey.trim().replace(/^["']|["']$/g, '');
+
+    if (!apiKey) {
+      return NextResponse.json(
+        {
+          error: 'Gemini API Key is required. Please add GEMINI_API_KEY in Vercel Environment Variables.'
+        },
+        { status: 401 }
+      );
+    }
+
+    const targetPortfolioId = portfolioId || ServerTradingRepository.getActivePortfolioId() || 'portfolio-demo-1';
+    const existingTrades = await ServerTradingRepository.getTrades(targetPortfolioId);
+
+    // Process every image concurrently — sequential processing multiplies
+    // per-image latency by the batch size and was the cause of 504 Gateway
+    // Timeout on multi-screenshot uploads.
+    const results = await Promise.all(
+      images.map((rawImage: string, imgIdx: number) => processImage(rawImage, imgIdx, apiKey))
+    );
+
+    const allParsedCandidates: ParsedTradeCandidate[] = results.flatMap((r) => r.candidates);
+    const lastErrorSummary = results.find((r) => r.errorText)?.errorText || '';
 
     // -------------------------------------------------------------
     // Smart Deduplication Engine
     // -------------------------------------------------------------
     if (allParsedCandidates.length === 0) {
       return NextResponse.json(
-        { 
-          error: lastErrorSummary 
-            ? `Gemini Error: ${lastErrorSummary.slice(0, 200)}` 
-            : 'AI ไม่สามารถอ่านรายการเทรดจากรูปภาพได้ โปรดตรวจสอบ GEMINI_API_KEY ใน Vercel Environment Variables' 
-        }, 
+        {
+          error: lastErrorSummary
+            ? `Gemini Error: ${lastErrorSummary.slice(0, 200)}`
+            : 'AI ไม่สามารถอ่านรายการเทรดจากรูปภาพได้ โปรดตรวจสอบ GEMINI_API_KEY ใน Vercel Environment Variables'
+        },
         { status: 400 }
       );
     }
