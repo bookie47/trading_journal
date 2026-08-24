@@ -316,10 +316,41 @@ export function AIScreenshotImporterModal({ isOpen, onClose }: AIScreenshotImpor
             )}
 
 
+            {/* Optional Gemini API Key Box */}
+            <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs">
+              <div className="flex items-center justify-between text-slate-300 font-medium mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Key className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Google Gemini API Key:</span>
+                </div>
+                <a 
+                  href="https://aistudio.google.com/app/apikey" 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  className="text-brand-400 hover:underline text-[11px]"
+                >
+                  รับคีย์ฟรี &rarr;
+                </a>
+              </div>
+              <input
+                type="password"
+                placeholder="AIzaSy... (วางคีย์ตรงนี้ หรือใส่ใน Vercel Settings)"
+                defaultValue={typeof window !== 'undefined' ? localStorage.getItem('trading_journal_gemini_key') || '' : ''}
+                onChange={(e) => {
+                  const val = e.target.value.trim();
+                  if (typeof window !== 'undefined') {
+                    if (val) localStorage.setItem('trading_journal_gemini_key', val);
+                    else localStorage.removeItem('trading_journal_gemini_key');
+                  }
+                }}
+                className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand-500"
+              />
+            </div>
+
             {errorMsg && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{errorMsg}</span>
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span className="break-all">{errorMsg}</span>
               </div>
             )}
 
