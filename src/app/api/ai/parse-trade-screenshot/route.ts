@@ -79,41 +79,68 @@ Respond ONLY with valid JSON in this exact structure without markdown backticks:
 }
 `;
 
-      try {
-        const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-        const response = await fetch(geminiEndpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  { text: promptText },
-                  {
-                    inline_data: {
-                      mime_type: mimeType,
-                      data: base64Data,
+      let parsed: any = null;
+      let lastErrorText = '';
+
+      // Try gemini-1.5-flash first, fallback to gemini-2.0-flash
+      const modelsToTry = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
+
+      for (const modelName of modelsToTry) {
+        try {
+          const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+          const response = await fetch(geminiEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    { text: promptText },
+                    {
+                      inline_data: {
+                        mime_type: mimeType,
+                        data: base64Data,
+                      },
                     },
-                  },
-                ],
+                  ],
+                },
+              ],
+              generationConfig: {
+                temperature: 0.1,
               },
-            ],
-            generationConfig: {
-              temperature: 0.1,
-              response_mime_type: 'application/json',
-            },
-          }),
-        });
+            }),
+          });
 
-        if (!response.ok) {
-          const errText = await response.text();
-          console.error(`Gemini API error on image ${imgIdx + 1}:`, errText);
-          continue;
+          if (!response.ok) {
+            lastErrorText = await response.text();
+            console.warn(`Gemini model ${modelName} returned status ${response.status}:`, lastErrorText);
+            continue;
+          }
+
+          const data = await response.json();
+          let rawContent = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+          
+          // Strip potential markdown ```json ... ``` blocks
+          rawContent = rawContent.replace(/```json/gi, '').replace(/```/g, '').trim();
+          parsed = JSON.parse(rawContent);
+          if (parsed && Array.isArray(parsed.trades)) {
+            break; // Successfully parsed!
+          }
+        } catch (mErr: any) {
+          lastErrorText = mErr.message || String(mErr);
         }
+      }
 
-        const data = await response.json();
-        const rawContent = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-        const parsed = JSON.parse(rawContent.trim());
+      if (!parsed || !Array.isArray(parsed.trades)) {
+        console.error(`Failed to parse image #${imgIdx + 1}:`, lastErrorText);
+        if (images.length === 1) {
+          return NextResponse.json(
+            { error: `ไม่สามารถสแกนภาพได้ (${lastErrorText.slice(0, 150)}) โปรดตรวจสอบ API Key` },
+            { status: 400 }
+          );
+        }
+        continue;
+      }
 
         if (Array.isArray(parsed.trades)) {
           for (const item of parsed.trades) {
