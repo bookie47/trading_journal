@@ -43,38 +43,36 @@ export async function POST(req: NextRequest) {
       }
 
       const promptText = `
-You are an expert financial OCR assistant specializing in MetaTrader 5 (MT5) and MetaTrader 4 (MT4) trade history screenshots.
-Analyze this screenshot carefully and extract ALL completed closed trades / deals shown in the table.
+You are an expert financial OCR assistant specializing in MetaTrader 5 (MT5) mobile app (iOS and Android) trade history screenshots.
+Analyze this screenshot carefully and extract ALL completed trading deals (BUY / SELL trades).
 
-For each trade row, extract:
-- ticket: string or number (e.g. 228658079 or deal ID if shown, otherwise null)
-- symbol: string (e.g. "GOLD", "XAUUSD", "EURUSD", convert lowercase "gold" to "GOLD")
-- side: "BUY" or "SELL"
-- lots: number (e.g. 0.01, 0.5, 1.0)
-- open_price: number (entry price, e.g. 4658.07)
-- close_price: number (exit price, e.g. 4675.18)
-- sl: number or null (Stop Loss if shown)
-- tp: number or null (Take Profit if shown)
-- profit: number (net profit in currency, e.g. 19.08 or -10.50)
-- open_time: string (e.g. "2026.08.24 15:43:14" or "2026-08-24T15:43:14Z")
-- close_time: string (e.g. "2026.08.24 16:15:00" or same as open_time if single timestamp)
-- fee: number (sum of commission + swap, default 0)
+CRITICAL RULES:
+1. DO NOT include Balance transactions, Deposits, Withdrawals, Credits, or Broker fees (e.g. ignore rows with "Balance", "Credit", "Credit Out", "Credit-In", "CD-SC-BWR", "EXP01", "CW-PTD-BWR").
+2. ONLY extract actual trading deals (e.g. "GOLD buy 0.01", "EURUSD sell 0.10", "XAUUSD buy 0.05").
+3. For each trade row:
+   - symbol: Standard symbol name (e.g. "GOLD", "XAUUSD", "EURUSD")
+   - side: "BUY" or "SELL"
+   - lots: Lot size / volume (e.g. 0.01)
+   - open_price: The entry price on the left before the arrow (e.g. in "4656.59 -> 4650.71", open_price is 4656.59)
+   - close_price: The exit price on the right after the arrow (e.g. in "4656.59 -> 4650.71", close_price is 4650.71)
+   - profit: Net profit/loss number on the right. If colored red with a minus sign (e.g. -5.88), profit is negative -5.88. If colored blue/white without minus (e.g. 21.11), profit is positive 21.11.
+   - close_time: The timestamp under the price (e.g. "2026.08.24 15:32:53")
+   - ticket: Deal ticket number if visible, otherwise null.
 
 Respond ONLY with valid JSON in this exact structure without markdown backticks:
 {
   "trades": [
     {
-      "ticket": "228658079",
       "symbol": "GOLD",
       "side": "BUY",
       "lots": 0.01,
-      "open_price": 4658.07,
-      "close_price": 4675.18,
+      "open_price": 4656.59,
+      "close_price": 4650.71,
       "sl": null,
       "tp": null,
-      "profit": 19.08,
-      "open_time": "2026-08-24 15:43:14",
-      "close_time": "2026-08-24 16:00:00",
+      "profit": -5.88,
+      "open_time": "2026-08-24 15:32:53",
+      "close_time": "2026-08-24 15:32:53",
       "fee": 0
     }
   ]
