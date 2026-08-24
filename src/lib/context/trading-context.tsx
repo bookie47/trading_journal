@@ -242,7 +242,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
 
   // Overall stats
   const stats = useMemo(() => {
-    return calculateDashboardStats(trades, activePortfolio?.initial_balance || 10000);
+    return calculateDashboardStats(trades, activePortfolio?.initial_balance ?? 0);
   }, [trades, activePortfolio]);
 
   // Reset Filters

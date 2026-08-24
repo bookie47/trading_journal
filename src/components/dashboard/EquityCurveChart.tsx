@@ -17,7 +17,7 @@ import { Card } from '../ui/Card';
 
 export function EquityCurveChart() {
   const { trades, activePortfolio } = useTrading();
-  const initialBalance = activePortfolio?.initial_balance || 10000;
+  const initialBalance = activePortfolio?.initial_balance ?? 0;
   const currency = activePortfolio?.currency || 'USD';
 
   const chartData = useMemo(() => {
