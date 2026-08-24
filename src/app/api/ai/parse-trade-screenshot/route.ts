@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     if (!apiKey) {
       return NextResponse.json(
         { 
-          error: 'Gemini API Key is required. Please provide an API key or configure GEMINI_API_KEY in settings.' 
+          error: 'Gemini API Key is required. Please add GEMINI_API_KEY in Vercel Environment Variables.' 
         }, 
         { status: 401 }
       );
@@ -136,47 +136,42 @@ Respond ONLY with valid JSON in this exact structure without markdown backticks:
         continue;
       }
 
-        if (Array.isArray(parsed.trades)) {
-          for (const item of parsed.trades) {
-            const side: TradeSide = 
-              String(item.side).toUpperCase().includes('BUY') ? 'long' : 'short';
+      for (const item of parsed.trades) {
+        const side: TradeSide = 
+          String(item.side).toUpperCase().includes('BUY') ? 'long' : 'short';
 
-            let entryTimeISO = new Date().toISOString();
-            if (item.open_time) {
-              const parsedDate = new Date(String(item.open_time).replace(/\./g, '-'));
-              if (!isNaN(parsedDate.getTime())) {
-                entryTimeISO = parsedDate.toISOString();
-              }
-            }
-
-            let exitTimeISO = entryTimeISO;
-            if (item.close_time) {
-              const parsedDate = new Date(String(item.close_time).replace(/\./g, '-'));
-              if (!isNaN(parsedDate.getTime())) {
-                exitTimeISO = parsedDate.toISOString();
-              }
-            }
-
-            allParsedCandidates.push({
-              ticket: item.ticket || undefined,
-              asset: String(item.symbol || 'GOLD').replace(/\.raw|\.pro|\.m|\.a|\.s/gi, '').toUpperCase(),
-              side,
-              size: Number(item.lots || 0.01),
-              entry_price: Number(item.open_price || item.price || 0),
-              exit_price: item.close_price ? Number(item.close_price) : undefined,
-              sl: item.sl ? Number(item.sl) : undefined,
-              tp: item.tp ? Number(item.tp) : undefined,
-              pnl: Number(item.profit || 0),
-              fee: Number(item.fee || 0),
-              entry_time: entryTimeISO,
-              exit_time: exitTimeISO,
-              sourceImageIndex: imgIdx + 1,
-              notes: `AI Scanned from Screenshot #${imgIdx + 1}${item.ticket ? ` | Ticket #${item.ticket}` : ''}`,
-            });
+        let entryTimeISO = new Date().toISOString();
+        if (item.open_time) {
+          const parsedDate = new Date(String(item.open_time).replace(/\./g, '-'));
+          if (!isNaN(parsedDate.getTime())) {
+            entryTimeISO = parsedDate.toISOString();
           }
         }
-      } catch (geminiErr) {
-        console.error(`Error parsing image ${imgIdx + 1} with Gemini:`, geminiErr);
+
+        let exitTimeISO = entryTimeISO;
+        if (item.close_time) {
+          const parsedDate = new Date(String(item.close_time).replace(/\./g, '-'));
+          if (!isNaN(parsedDate.getTime())) {
+            exitTimeISO = parsedDate.toISOString();
+          }
+        }
+
+        allParsedCandidates.push({
+          ticket: item.ticket || undefined,
+          asset: String(item.symbol || 'GOLD').replace(/\.raw|\.pro|\.m|\.a|\.s/gi, '').toUpperCase(),
+          side,
+          size: Number(item.lots || 0.01),
+          entry_price: Number(item.open_price || item.price || 0),
+          exit_price: item.close_price ? Number(item.close_price) : undefined,
+          sl: item.sl ? Number(item.sl) : undefined,
+          tp: item.tp ? Number(item.tp) : undefined,
+          pnl: Number(item.profit || 0),
+          fee: Number(item.fee || 0),
+          entry_time: entryTimeISO,
+          exit_time: exitTimeISO,
+          sourceImageIndex: imgIdx + 1,
+          notes: `AI Scanned from Screenshot #${imgIdx + 1}${item.ticket ? ` | Ticket #${item.ticket}` : ''}`,
+        });
       }
     }
 
@@ -186,7 +181,7 @@ Respond ONLY with valid JSON in this exact structure without markdown backticks:
     if (allParsedCandidates.length === 0) {
       return NextResponse.json(
         { 
-          error: 'AI ไม่สามารถอ่านรายการเทรดจากรูปภาพได้ โปรดเพิ่ม GEMINI_API_KEY ใน Vercel Environment Variables' 
+          error: 'AI ไม่สามารถอ่านรายการเทรดจากรูปภาพได้ โปรดตรวจสอบว่าได้ใส่ GEMINI_API_KEY ใน Vercel Environment Variables' 
         }, 
         { status: 400 }
       );
