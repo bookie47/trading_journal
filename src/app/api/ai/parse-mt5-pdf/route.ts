@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const MODELS_TO_TRY = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.0-flash-lite'];
+const MODELS_TO_TRY = [
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+  'gemini-1.5-flash-latest',
+  'gemini-1.5-flash-8b'
+];
 
 const PDF_PROMPT = `
 You are an expert financial analyst parsing an official MetaTrader 5 (MT5) Statement Report in PDF format.
@@ -104,6 +109,10 @@ export async function POST(req: NextRequest) {
         let rawContent = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
         rawContent = rawContent.replace(/```json/gi, '').replace(/```/g, '').trim();
         parsed = JSON.parse(rawContent);
+
+        if (parsed?.report?.trades) {
+          parsed = parsed.report;
+        }
 
         if (parsed && Array.isArray(parsed.trades) && parsed.trades.length > 0) {
           break;
