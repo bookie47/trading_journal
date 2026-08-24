@@ -1,7 +1,30 @@
 import { Trade, DashboardStats, EquityPoint, StrategyPerformance, AssetPerformance, DayOfWeekPerformance, Strategy } from './types';
 
 /**
- * Calculates PnL for a trade given entry, exit, side, size, and fee
+ * Returns contract multiplier for financial assets (Gold 100 oz, Forex 100,000, etc.)
+ */
+export function getAssetContractMultiplier(asset: string = ''): number {
+  const clean = asset.toUpperCase().replace(/\.raw|\.pro|\.m|\.a|\.s/gi, '').trim();
+  if (clean === 'GOLD' || clean === 'XAUUSD' || clean === 'XAU') {
+    return 100; // 1 Lot of Gold = 100 oz (1 pip/point move = $1 on 0.01 lot)
+  }
+  if (clean === 'SILVER' || clean === 'XAGUSD' || clean === 'XAG') {
+    return 5000; // 1 Lot of Silver = 5,000 oz
+  }
+  if (clean === 'BTCUSD' || clean === 'BTC' || clean === 'ETHUSD' || clean === 'ETH') {
+    return 1; // Crypto = 1 coin per unit
+  }
+  if (clean.includes('US30') || clean.includes('NAS100') || clean.includes('SPX500') || clean.includes('DJ30') || clean.includes('GER30') || clean.includes('GER40')) {
+    return 1; // Indices
+  }
+  if (clean.length === 6 || clean.includes('EUR') || clean.includes('GBP') || clean.includes('JPY') || clean.includes('AUD') || clean.includes('NZD') || clean.includes('CAD') || clean.includes('CHF')) {
+    return 100000; // Standard Forex Lot = 100,000 units
+  }
+  return 1;
+}
+
+/**
+ * Calculates PnL for a trade given entry, exit, side, size, fee, and asset
  */
 export function calculatePnL(
   side: 'long' | 'short',
@@ -16,11 +39,11 @@ export function calculatePnL(
   }
 
   // Base raw price difference
-  let diff = side === 'long' ? exitPrice - entryPrice : entryPrice - exitPrice;
+  const diff = side === 'long' ? exitPrice - entryPrice : entryPrice - exitPrice;
+  const multiplier = getAssetContractMultiplier(asset);
   
-  // Estimate contract value / dollar PnL
-  // For standard sizing (e.g. 1 unit / lot): diff * size - fee
-  const rawPnL = diff * size;
+  // Realized Dollar PnL with Contract Multiplier: diff * size * contractSize - fee
+  const rawPnL = diff * size * multiplier;
   const netPnL = Number((rawPnL - fee).toFixed(2));
   
   const returnPercentage = Number(((diff / entryPrice) * 100).toFixed(2));
@@ -28,7 +51,7 @@ export function calculatePnL(
   return {
     pnl: netPnL,
     pnlPercentage: returnPercentage,
-    rMultiple: 0 // Will be computed with SL if provided
+    rMultiple: 0
   };
 }
 
