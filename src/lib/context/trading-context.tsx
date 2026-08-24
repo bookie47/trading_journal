@@ -194,9 +194,19 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
     return portfolios.find(p => p.id === activePortfolioId) || portfolios[0] || null;
   }, [portfolios, activePortfolioId]);
 
+  // Ensure trades are strictly unique by ID
+  const uniqueTrades = useMemo(() => {
+    const seen = new Set<string>();
+    return trades.filter(t => {
+      if (!t.id || seen.has(t.id)) return false;
+      seen.add(t.id);
+      return true;
+    });
+  }, [trades]);
+
   // Filtered trades computation
   const filteredTrades = useMemo(() => {
-    return trades.filter(t => {
+    return uniqueTrades.filter(t => {
       // Search
       if (filters.search) {
         const query = filters.search.toLowerCase();
@@ -238,12 +248,12 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
 
       return true;
     });
-  }, [trades, filters]);
+  }, [uniqueTrades, filters]);
 
   // Overall stats
   const stats = useMemo(() => {
-    return calculateDashboardStats(trades, activePortfolio?.initial_balance ?? 0);
-  }, [trades, activePortfolio]);
+    return calculateDashboardStats(uniqueTrades, activePortfolio?.initial_balance ?? 0);
+  }, [uniqueTrades, activePortfolio]);
 
   // Reset Filters
   const resetFilters = useCallback(() => {
@@ -297,7 +307,12 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
   // Trade actions
   const addTrade = useCallback(async (trade: Trade) => {
     const saved = await TradingRepository.saveTrade(trade);
-    setTrades(prev => [saved, ...prev]);
+    setTrades(prev => {
+      if (prev.some(t => t.id === saved.id)) {
+        return prev.map(t => t.id === saved.id ? saved : t);
+      }
+      return [saved, ...prev];
+    });
     return saved;
   }, []);
 
