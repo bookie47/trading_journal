@@ -218,43 +218,54 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Map fingerprint to source image index to allow same-image multi-orders
-    const seenBatchMap = new Map<string, number>();
-    const deduplicatedResults: ParsedTradeCandidate[] = [];
-
-    // Fingerprint helper
-    const getFingerprint = (t: ParsedTradeCandidate) => {
-      if (t.ticket) return `ticket_${t.ticket}`;
-      const timeStr = (t.exit_time || t.entry_time).slice(0, 19);
-      return `${t.asset}_${t.side}_${t.entry_price}_${t.exit_price || 0}_${t.size}_${t.pnl}_${timeStr}`;
+    // -------------------------------------------------------------
+    // Occurrence-Aware Cross-Image Deduplication Engine
+    // -------------------------------------------------------------
+    // Fingerprint: asset_side_entryPrice_exitPrice_pnl
+    // Tracks maximum occurrence per image to perfectly handle screenshot scroll overlap
+    const getPriceSignature = (t: ParsedTradeCandidate) => {
+      const entryP = Number(t.entry_price || 0).toFixed(2);
+      const exitP = Number(t.exit_price || 0).toFixed(2);
+      const pnlVal = Number(t.pnl || 0).toFixed(2);
+      return `${t.asset}_${t.side}_${entryP}_${exitP}_${pnlVal}`;
     };
 
+    // Track seen occurrences across images: Map<signature, countAccepted>
+    const globalSeenOccurrences = new Map<string, number>();
+    // Track per-image occurrence count: Map<`${imgIdx}_${signature}`, occurrenceNum>
+    const imageOccurrences = new Map<string, number>();
+
+    const deduplicatedResults: ParsedTradeCandidate[] = [];
     let newCount = 0;
     let duplicateCount = 0;
 
     for (const candidate of allParsedCandidates) {
-      const fingerprint = getFingerprint(candidate);
+      const sig = getPriceSignature(candidate);
       const imgIdx = candidate.sourceImageIndex || 1;
 
-      // Check 1: Duplicate across different images in current batch (e.g. image 1 and image 2 overlap)
-      if (seenBatchMap.has(fingerprint) && seenBatchMap.get(fingerprint) !== imgIdx) {
+      const imgKey = `${imgIdx}_${sig}`;
+      const occurrenceInThisImage = (imageOccurrences.get(imgKey) || 0) + 1;
+      imageOccurrences.set(imgKey, occurrenceInThisImage);
+
+      const alreadyAcceptedCount = globalSeenOccurrences.get(sig) || 0;
+
+      // If this occurrence index for this signature was already seen in a prior image, it's a scroll overlap!
+      if (occurrenceInThisImage <= alreadyAcceptedCount) {
         duplicateCount++;
         deduplicatedResults.push({
           ...candidate,
           isDuplicate: true,
-          duplicateReason: 'ซ้ำกับภาพอื่นในชุดเดียวกัน (Batch overlap)',
+          duplicateReason: 'ตรวจพบซ้ำจากขอบภาพที่เลื่อนต่อเนื่องกัน (Overlap)',
         });
         continue;
       }
-      seenBatchMap.set(fingerprint, imgIdx);
 
-      // Check 2: Duplicate with existing database trades
+      // Check against Database trades
       const dbMatch = existingTrades.find((dbTrade) => {
         if (candidate.ticket && (dbTrade.id === `mt5_${candidate.ticket}` || dbTrade.ticket == candidate.ticket)) {
           return true;
         }
-        const dbFingerprint = getFingerprint(dbTrade);
-        return dbFingerprint === fingerprint;
+        return getPriceSignature(dbTrade) === sig;
       });
 
       if (dbMatch) {
@@ -262,9 +273,11 @@ export async function POST(req: NextRequest) {
         deduplicatedResults.push({
           ...candidate,
           isDuplicate: true,
-          duplicateReason: `มีอยู่ในสมุดบันทึกแล้ว (${dbMatch.asset} #${candidate.ticket || dbMatch.id})`,
+          duplicateReason: `มีอยู่ในระบบแล้ว (${dbMatch.asset} PnL: ${dbMatch.pnl})`,
         });
       } else {
+        // Accept as new trade and increment global accepted count
+        globalSeenOccurrences.set(sig, alreadyAcceptedCount + 1);
         newCount++;
         deduplicatedResults.push({
           ...candidate,
