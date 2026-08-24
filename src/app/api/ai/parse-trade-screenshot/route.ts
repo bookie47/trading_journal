@@ -89,7 +89,7 @@ async function processImage(
           contents: [
             {
               parts: [
-                { text: PROMPT_TEXT },
+                { text: OCR_SYSTEM_PROMPT },
                 {
                   inlineData: {
                     mimeType: mimeType,
