@@ -20,7 +20,8 @@ import { TradeCardList } from '@/components/trades/TradeCardList';
 import { CloseTradeModal } from '@/components/trades/CloseTradeModal';
 import { TradeDetailModal } from '@/components/trades/TradeDetailModal';
 import { AIScreenshotImporterModal } from '@/components/trades/AIScreenshotImporterModal';
-import { Camera, Sparkles } from 'lucide-react';
+import { MT5ReportImporterModal } from '@/components/trades/MT5ReportImporterModal';
+import { Camera, Sparkles, FileText } from 'lucide-react';
 
 export default function TradeHistoryPage() {
   const { 
@@ -39,6 +40,7 @@ export default function TradeHistoryPage() {
   const [closingTrade, setClosingTrade] = useState<Trade | null>(null);
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   // List of unique assets for quick filter dropdown
   const uniqueAssets = useMemo(() => {
@@ -78,6 +80,14 @@ export default function TradeHistoryPage() {
               ล้างประวัติ
             </Button>
           )}
+
+          <Button
+            onClick={() => setIsReportModalOpen(true)}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/25 text-xs sm:text-sm font-semibold"
+          >
+            <FileText className="w-4 h-4 mr-1.5 text-emerald-200" />
+            📄 นำเข้าจากรายงาน MT5 (Report)
+          </Button>
 
           <Button
             onClick={() => setIsAIModalOpen(true)}
@@ -279,6 +289,12 @@ export default function TradeHistoryPage() {
       <AIScreenshotImporterModal
         isOpen={isAIModalOpen}
         onClose={() => setIsAIModalOpen(false)}
+      />
+
+      {/* MT5 HTML / Statement Importer Modal */}
+      <MT5ReportImporterModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
       />
     </div>
   );
