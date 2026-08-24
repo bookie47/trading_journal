@@ -76,6 +76,8 @@ export interface Trade {
 export interface DashboardStats {
   currentBalance: number;
   netPnL: number;
+  grossProfit: number;
+  grossLoss: number;
   totalPnLPercentage: number;
   winRate: number; // percentage (0 - 100)
   totalTrades: number;
@@ -92,6 +94,10 @@ export interface DashboardStats {
   avgLoss: number;
   largestWin: number;
   largestLoss: number;
+  totalDeposits?: number;
+  totalWithdrawals?: number;
+  netCashProfit?: number;
+  cashROI?: number;
 }
 
 export interface EquityPoint {

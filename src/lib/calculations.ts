@@ -173,6 +173,8 @@ export function calculateDashboardStats(
   return {
     currentBalance,
     netPnL,
+    grossProfit: Number(totalGrossWin.toFixed(2)),
+    grossLoss: Number(totalGrossLoss.toFixed(2)),
     totalPnLPercentage,
     winRate,
     totalTrades: trades.length,

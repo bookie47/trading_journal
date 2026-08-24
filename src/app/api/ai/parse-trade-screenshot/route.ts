@@ -218,15 +218,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const seenBatchKeys = new Set<string>();
+    // Map fingerprint to source image index to allow same-image multi-orders
+    const seenBatchMap = new Map<string, number>();
     const deduplicatedResults: ParsedTradeCandidate[] = [];
 
     // Fingerprint helper
-    const getFingerprint = (t: { ticket?: any; asset: string; entry_price: number; size: number; pnl: number; entry_time: string }) => {
+    const getFingerprint = (t: ParsedTradeCandidate) => {
       if (t.ticket) return `ticket_${t.ticket}`;
-      // Normalized signature: asset_price_size_pnl_timeMinute
-      const timeMinute = t.entry_time.slice(0, 16);
-      return `${t.asset}_${t.entry_price}_${t.size}_${t.pnl}_${timeMinute}`;
+      const timeStr = (t.exit_time || t.entry_time).slice(0, 19);
+      return `${t.asset}_${t.side}_${t.entry_price}_${t.exit_price || 0}_${t.size}_${t.pnl}_${timeStr}`;
     };
 
     let newCount = 0;
@@ -234,9 +234,10 @@ export async function POST(req: NextRequest) {
 
     for (const candidate of allParsedCandidates) {
       const fingerprint = getFingerprint(candidate);
+      const imgIdx = candidate.sourceImageIndex || 1;
 
-      // Check 1: Duplicate inside current batch (e.g. image 1 and image 2 overlap)
-      if (seenBatchKeys.has(fingerprint)) {
+      // Check 1: Duplicate across different images in current batch (e.g. image 1 and image 2 overlap)
+      if (seenBatchMap.has(fingerprint) && seenBatchMap.get(fingerprint) !== imgIdx) {
         duplicateCount++;
         deduplicatedResults.push({
           ...candidate,
@@ -245,7 +246,7 @@ export async function POST(req: NextRequest) {
         });
         continue;
       }
-      seenBatchKeys.add(fingerprint);
+      seenBatchMap.set(fingerprint, imgIdx);
 
       // Check 2: Duplicate with existing database trades
       const dbMatch = existingTrades.find((dbTrade) => {
