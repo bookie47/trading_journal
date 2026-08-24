@@ -14,7 +14,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No images provided' }, { status: 400 });
     }
 
-    const apiKey = customApiKey || process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+    const rawKey = customApiKey || process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
+    const apiKey = rawKey.trim().replace(/^["']|["']$/g, '');
 
     if (!apiKey) {
       return NextResponse.json(
@@ -42,6 +43,7 @@ export async function POST(req: NextRequest) {
         mimeType = parts[0].replace('data:', '') || 'image/jpeg';
         base64Data = parts[1];
       }
+      base64Data = base64Data.replace(/[\r\n\s]/g, '');
 
       const promptText = `
 You are an expert financial OCR assistant specializing in MetaTrader 5 (MT5) mobile app (iOS and Android) trade history screenshots.

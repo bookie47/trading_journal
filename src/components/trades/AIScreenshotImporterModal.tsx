@@ -122,11 +122,14 @@ export function AIScreenshotImporterModal({ isOpen, onClose }: AIScreenshotImpor
         selectedFiles.map(file => compressImage(file))
       );
 
+      const localKey = typeof window !== 'undefined' ? localStorage.getItem('trading_journal_gemini_key') || '' : '';
+
       const res = await fetch('/api/ai/parse-trade-screenshot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           images: base64List,
+          apiKey: localKey || undefined,
           portfolioId: activePortfolio?.id,
         }),
       });
