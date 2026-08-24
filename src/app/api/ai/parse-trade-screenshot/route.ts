@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
     const allParsedCandidates: ParsedTradeCandidate[] = [];
 
     // Process each image with Gemini Vision
+    let lastErrorSummary = '';
     for (let imgIdx = 0; imgIdx < images.length; imgIdx++) {
       const rawImage = images[imgIdx];
       let base64Data = rawImage;
@@ -82,12 +83,12 @@ Respond ONLY with valid JSON in this exact structure without markdown backticks:
       let parsed: any = null;
       let lastErrorText = '';
 
-      // Try gemini-1.5-flash first, fallback to gemini-2.0-flash
+      // Try gemini-1.5-flash first, fallback to gemini-2.0-flash, gemini-1.5-pro
       const modelsToTry = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
 
       for (const modelName of modelsToTry) {
         try {
-          const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+          const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey.trim()}`;
           const response = await fetch(geminiEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -97,8 +98,8 @@ Respond ONLY with valid JSON in this exact structure without markdown backticks:
                   parts: [
                     { text: promptText },
                     {
-                      inline_data: {
-                        mime_type: mimeType,
+                      inlineData: {
+                        mimeType: mimeType,
                         data: base64Data,
                       },
                     },
@@ -107,6 +108,7 @@ Respond ONLY with valid JSON in this exact structure without markdown backticks:
               ],
               generationConfig: {
                 temperature: 0.1,
+                responseMimeType: 'application/json',
               },
             }),
           });
@@ -123,7 +125,7 @@ Respond ONLY with valid JSON in this exact structure without markdown backticks:
           // Strip potential markdown ```json ... ``` blocks
           rawContent = rawContent.replace(/```json/gi, '').replace(/```/g, '').trim();
           parsed = JSON.parse(rawContent);
-          if (parsed && Array.isArray(parsed.trades)) {
+          if (parsed && Array.isArray(parsed.trades) && parsed.trades.length > 0) {
             break; // Successfully parsed!
           }
         } catch (mErr: any) {
@@ -132,6 +134,7 @@ Respond ONLY with valid JSON in this exact structure without markdown backticks:
       }
 
       if (!parsed || !Array.isArray(parsed.trades)) {
+        lastErrorSummary = lastErrorText;
         console.error(`Failed to parse image #${imgIdx + 1}:`, lastErrorText);
         continue;
       }
@@ -181,7 +184,9 @@ Respond ONLY with valid JSON in this exact structure without markdown backticks:
     if (allParsedCandidates.length === 0) {
       return NextResponse.json(
         { 
-          error: 'AI ไม่สามารถอ่านรายการเทรดจากรูปภาพได้ โปรดตรวจสอบว่าได้ใส่ GEMINI_API_KEY ใน Vercel Environment Variables' 
+          error: lastErrorSummary 
+            ? `Gemini Error: ${lastErrorSummary.slice(0, 200)}` 
+            : 'AI ไม่สามารถอ่านรายการเทรดจากรูปภาพได้ โปรดตรวจสอบ GEMINI_API_KEY ใน Vercel Environment Variables' 
         }, 
         { status: 400 }
       );
