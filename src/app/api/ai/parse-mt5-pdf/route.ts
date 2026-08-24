@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const MODELS_TO_TRY = [
-  'gemini-2.0-flash',
-  'gemini-1.5-flash'
-];
+// Active Google AI Studio models. Kept as a list (not a single model) so a
+// transient outage or future retirement of one model falls through to a
+// working one instead of failing outright. See parse-trade-screenshot/route.ts.
+const MODELS_TO_TRY = ['gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-flash-latest'];
 
 const PDF_PROMPT = `
 You are an expert financial analyst parsing an official MetaTrader 5 (MT5) Statement Report in PDF format.
