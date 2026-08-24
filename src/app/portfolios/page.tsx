@@ -80,12 +80,21 @@ export default function PortfoliosPage() {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (portfolios.length <= 1) {
-      alert('ไม่สามารถลบพอร์ตสุดท้ายได้');
-      return;
-    }
-    if (confirm(`คุณต้องการลบพอร์ต "${name}" และข้อมูลการเทรดทั้งหมดในพอร์ตนี้ใช่หรือไม่?`)) {
-      await deletePortfolio(id);
+    if (confirm(`คุณต้องการลบพอร์ต "${name}" และล้างข้อมูลการเทรดทั้งหมดใช่หรือไม่?`)) {
+      if (portfolios.length <= 1) {
+        // Reset to clean default portfolio
+        await updatePortfolio({
+          id,
+          name: 'Main Trading Portfolio',
+          initial_balance: 0,
+          currency: 'USD',
+          description: undefined,
+          created_at: new Date().toISOString(),
+        });
+        alert('รีเซ็ตพอร์ตและล้างข้อมูลเรียบร้อยแล้ว');
+      } else {
+        await deletePortfolio(id);
+      }
     }
   };
 
@@ -148,15 +157,13 @@ export default function PortfoliosPage() {
                     >
                       <Edit3 className="w-4 h-4" />
                     </button>
-                    {portfolios.length > 1 && (
-                      <button
-                        onClick={() => handleDelete(p.id, p.name)}
-                        className="text-slate-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-slate-800 transition"
-                        title="ลบพอร์ต"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
+                    <button
+                      onClick={() => handleDelete(p.id, p.name)}
+                      className="text-slate-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-slate-800 transition"
+                      title={portfolios.length <= 1 ? "รีเซ็ตและล้างข้อมูลพอร์ตนี้" : "ลบพอร์ต"}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
 
