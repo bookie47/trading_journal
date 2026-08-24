@@ -122,20 +122,6 @@ export function Header() {
           </div>
         )}
 
-        {trades.length > 0 && (
-          <button
-            onClick={() => {
-              if (confirm('คุณต้องการลบข้อมูลประวัติการเทรด Demo ทั้งหมดใช่หรือไม่?')) {
-                clearAllTrades();
-              }
-            }}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs hover:bg-rose-500/20 hover:border-rose-500/60 transition"
-            title="ลบข้อมูลการเทรด Demo ทั้งหมด"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">ล้างข้อมูล Demo</span>
-          </button>
-        )}
 
         <Link href="/mt5-sync">
           <Button variant="outline" size="sm" className="text-xs border-indigo-700/60 text-indigo-300 hover:bg-indigo-950/40">
