@@ -97,10 +97,40 @@ export function MT5ReportImporterModal({ isOpen, onClose }: Props) {
   };
 
   const handleSaveAll = async () => {
-    if (!report || report.trades.length === 0) return;
+    if (!report) return;
 
     setIsSaving(true);
     try {
+      if (report.trades.length === 0) {
+        // Save as a Trading Session Record
+        const tradeId = `session_${Date.now()}`;
+        const newTrade: Trade = {
+          id: tradeId,
+          portfolio_id: activePortfolio?.id || 'portfolio-demo-1',
+          asset: 'GOLD (SESSION)',
+          side: report.totalNetProfit >= 0 ? 'long' : 'short',
+          size: 0.01,
+          entry_price: 1,
+          exit_price: 1,
+          fee: 0,
+          entry_time: new Date().toISOString(),
+          exit_time: new Date().toISOString(),
+          strategy_id: selectedStrategyId || undefined,
+          status: 'closed',
+          pnl: report.totalNetProfit,
+          pnl_percentage: report.cashROI || 0,
+          r_multiple: report.profitFactor || 0,
+          notes: `MT5 Summary Report | Account #${report.accountNumber || 'N/A'} | Gross Win: +$${report.grossProfit} | Gross Loss: -$${report.grossLoss} | Cash Net: +$${report.netCashProfit}`,
+          created_at: new Date().toISOString(),
+        };
+
+        await addTrade(newTrade);
+        alert(`บันทึกผลงานรอบนี้ (กำไร +$${report.totalNetProfit} USD) เรียบร้อยแล้ว!`);
+        setReport(null);
+        onClose();
+        return;
+      }
+
       for (const t of report.trades) {
         const tradeId = t.ticket ? `mt5_${t.ticket}` : `trade_${Date.now()}_${Math.random().toString(36).substring(7)}`;
 
