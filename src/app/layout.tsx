@@ -36,31 +36,31 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="th" className="dark">
+    <html lang="th" className="dark overflow-x-hidden max-w-full">
       <head>
         <link rel="manifest" href="/manifest.json" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
       </head>
-      <body className="min-h-screen bg-slate-950 text-slate-100 antialiased flex flex-col md:flex-row selection:bg-brand-500 selection:text-white">
+      <body className="min-h-screen w-full max-w-full overflow-x-hidden bg-slate-950 text-slate-100 antialiased flex flex-col md:flex-row selection:bg-brand-500 selection:text-white">
         <TradingProvider>
           {/* Desktop Left Sidebar */}
           <Sidebar />
 
           {/* Main App Layout */}
-          <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+          <div className="flex-1 flex flex-col min-w-0 w-full max-w-full min-h-screen overflow-x-hidden">
             {/* Top Header with Portfolio Selector */}
             <Header />
 
             {/* Page Content */}
-            <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+            <main className="flex-1 p-3 sm:p-6 lg:p-8 overflow-y-auto overflow-x-hidden w-full max-w-full">
               {children}
             </main>
 
             {/* Mobile Bottom Navigation Bar */}
             <BottomNav />
 
-            {/* PWA Installation Prompt */}
+            {/* PWA Smart Install Banner */}
             <PWAInstallPrompt />
           </div>
         </TradingProvider>
