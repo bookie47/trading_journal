@@ -68,7 +68,7 @@ export function MT5ReportImporterModal({ isOpen, onClose }: Props) {
         const newTrade: Trade = {
           id: tradeId,
           portfolio_id: activePortfolio?.id || 'portfolio-demo-1',
-          ticket: t.ticket,
+          ticket: t.ticket ? Number(t.ticket) : undefined,
           asset: t.asset,
           side: t.side,
           size: t.size,
@@ -81,6 +81,7 @@ export function MT5ReportImporterModal({ isOpen, onClose }: Props) {
           status: 'closed',
           pnl: t.pnl,
           pnl_percentage: 0,
+          r_multiple: 0,
           notes: `Imported from MT5 Report (Ticket #${t.ticket || 'N/A'})`,
           created_at: new Date().toISOString(),
         };
