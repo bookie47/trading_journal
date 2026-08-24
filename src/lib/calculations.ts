@@ -170,10 +170,11 @@ export function calculateDashboardStats(
     }
   }
 
-  const realDeposit = initialBalance > 0 ? initialBalance : 61.03;
-  const netCashProfit = Number(closedTrades.reduce((sum, t) => sum + (t.pnl || 0), 0).toFixed(2));
-  const totalWithdrawals = Number((realDeposit + netCashProfit).toFixed(2));
-  const cashROI = realDeposit > 0 ? Number(((netCashProfit / realDeposit) * 100).toFixed(1)) : 0;
+  const hasTrades = closedTrades.length > 0;
+  const realDeposit = hasTrades ? (initialBalance > 0 ? initialBalance : 61.03) : (initialBalance || 0);
+  const netCashProfit = hasTrades ? Number(closedTrades.reduce((sum, t) => sum + (t.pnl || 0), 0).toFixed(2)) : 0;
+  const totalWithdrawals = hasTrades ? Number((realDeposit + netCashProfit).toFixed(2)) : 0;
+  const cashROI = (hasTrades && realDeposit > 0) ? Number(((netCashProfit / realDeposit) * 100).toFixed(1)) : 0;
 
   return {
     currentBalance,
