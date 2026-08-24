@@ -23,6 +23,15 @@ export function StatCards() {
 
   const cardItems = [
     {
+      label: 'กำไรสุทธิ (Net Profit)',
+      value: `${isProfit ? '+' : ''}${stats.netPnL.toLocaleString()} ${currency}`,
+      subtext: `${isProfit ? '+' : ''}${stats.totalPnLPercentage}% จากทุนเริ่มต้น`,
+      icon: isProfit ? TrendingUp : TrendingDown,
+      color: isProfit ? 'text-emerald-400' : 'text-rose-400',
+      bgColor: isProfit ? 'bg-emerald-500/10' : 'bg-rose-500/10',
+      valueColor: isProfit ? 'text-emerald-400' : 'text-rose-400',
+    },
+    {
       label: 'ยอดเงินพอร์ตปัจจุบัน (Balance)',
       value: `${stats.currentBalance.toLocaleString()} ${currency}`,
       subtext: `ทุนเริ่มต้น ${(activePortfolio?.initial_balance ?? 0).toLocaleString()} ${currency} (คลิกเพื่อแก้ไข)`,
@@ -30,15 +39,6 @@ export function StatCards() {
       color: 'text-brand-400',
       bgColor: 'bg-brand-500/10',
       href: '/portfolios',
-    },
-    {
-      label: 'Net PnL รวมทั้งหมด',
-      value: `${isProfit ? '+' : ''}${stats.netPnL.toLocaleString()} ${currency}`,
-      subtext: `${isProfit ? '+' : ''}${stats.totalPnLPercentage}% จากทุนเริ่มต้น`,
-      icon: isProfit ? TrendingUp : TrendingDown,
-      color: isProfit ? 'text-emerald-400' : 'text-rose-400',
-      bgColor: isProfit ? 'bg-emerald-500/10' : 'bg-rose-500/10',
-      valueColor: isProfit ? 'text-emerald-400' : 'text-rose-400',
     },
     {
       label: 'อัตราการชนะ (Win Rate)',
