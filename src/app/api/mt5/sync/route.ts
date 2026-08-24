@@ -65,23 +65,61 @@ export async function POST(req: NextRequest) {
     if (event === 'batch_sync') {
       const { positions, balance, equity, currency, broker, login } = body;
       const portfolios = await ServerTradingRepository.getPortfolios();
-      const existing = portfolios.find(p => p.id === targetPortfolioId) || portfolios[0];
       
-      if (existing && balance !== undefined) {
+      // Smart find portfolio by ID or by login number
+      let existing = portfolios.find(p => 
+        (login && p.id === `portfolio-${login}`) ||
+        (login && p.description?.includes(String(login))) ||
+        p.id === targetPortfolioId
+      );
+
+      if (!existing && login) {
+        // Auto-create new portfolio for this MT5 Account!
+        const newPortfolio: Portfolio = {
+          id: `portfolio-${login}`,
+          name: `${broker ? broker.split(' ')[0] : 'MT5'} #${login}`,
+          initial_balance: Number(balance || 1000),
+          currency: currency || 'USD',
+          description: `MT5 Account: #${login} (${broker || 'MetaTrader 5'})`,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        await ServerTradingRepository.savePortfolio(newPortfolio);
+        existing = newPortfolio;
+      } else if (existing && balance !== undefined) {
         const updatedPortfolio = {
           ...existing,
           initial_balance: Number(balance),
           currency: currency || existing.currency || 'USD',
-          description: `MT5 Live Account: #${login || ''} (${broker || 'MetaTrader 5'})`,
+          description: `MT5 Account: #${login || ''} (${broker || 'MetaTrader 5'})`,
           updated_at: new Date().toISOString(),
         };
         await ServerTradingRepository.savePortfolio(updatedPortfolio);
+        existing = updatedPortfolio;
       }
 
-      const existingTrades = await ServerTradingRepository.getTrades(targetPortfolioId);
+      const activeId = existing?.id || targetPortfolioId;
+      const existingTrades = await ServerTradingRepository.getTrades(activeId);
       const savedTrades: Trade[] = [];
 
       if (Array.isArray(positions)) {
+        const currentOpenTicketIds = new Set(positions.map(p => `mt5_${p.ticket}`));
+
+        // 1. Auto-close trades that are no longer in MT5 open positions
+        for (const prevTrade of existingTrades) {
+          if (prevTrade.status === 'open' && prevTrade.id.startsWith('mt5_') && !currentOpenTicketIds.has(prevTrade.id)) {
+            const closedTrade: Trade = {
+              ...prevTrade,
+              status: 'closed',
+              exit_price: prevTrade.current_price || prevTrade.entry_price,
+              exit_time: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            };
+            await ServerTradingRepository.saveTrade(closedTrade);
+          }
+        }
+
+        // 2. Sync / update all currently open positions
         for (const pos of positions) {
           const tradeTicketId = `mt5_${pos.ticket}`;
           const existingTrade = existingTrades.find(t => t.id === tradeTicketId);
@@ -92,7 +130,7 @@ export async function POST(req: NextRequest) {
 
           const openTrade: Trade = {
             id: tradeTicketId,
-            portfolio_id: targetPortfolioId,
+            portfolio_id: activeId,
             ticket: pos.ticket,
             asset: String(pos.symbol || 'UNKNOWN').replace(/\.raw|\.pro|\.m|\.a|\.s/gi, '').toUpperCase(),
             side,
