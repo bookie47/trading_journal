@@ -26,7 +26,7 @@ export default function PortfoliosPage() {
   const [editingPortfolio, setEditingPortfolio] = useState<Portfolio | null>(null);
 
   const [name, setName] = useState('');
-  const [initialBalance, setInitialBalance] = useState('100');
+  const [initialBalance, setInitialBalance] = useState('');
   const [currency, setCurrency] = useState('USD');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -34,7 +34,7 @@ export default function PortfoliosPage() {
   const openCreateModal = () => {
     setEditingPortfolio(null);
     setName('');
-    setInitialBalance('100');
+    setInitialBalance('');
     setCurrency('USD');
     setDescription('');
     setIsModalOpen(true);
@@ -213,14 +213,13 @@ export default function PortfoliosPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
-              label="เงินทุนเริ่มต้น (Initial Balance) *"
+              label="เงินทุนเริ่มต้น (Initial Balance)"
               type="number"
               step="any"
               min="0"
-              placeholder="เช่น 30, 50, 1000"
+              placeholder="ไม่ระบุ = 0"
               value={initialBalance}
               onChange={(e) => setInitialBalance(e.target.value)}
-              required
             />
 
             <div>
