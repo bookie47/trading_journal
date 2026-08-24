@@ -13,12 +13,14 @@ export const maxDuration = 60; // Allow up to 60s for multi-image vision analysi
 // a 504 before we ever get a response back.
 const GEMINI_CALL_TIMEOUT_MS = 15000;
 
-// Active Google AI Studio models. "-latest" tracks whatever Google currently
-// considers current, so this list doesn't need to be hand-updated every time
-// an old dated model (e.g. gemini-2.0-flash, retired 2026-06-01) gets shut
-// down. gemini-2.5-flash is kept as a pinned fallback in case the alias is
-// temporarily unavailable.
-const MODELS_TO_TRY = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+// Active Google AI Studio models. The Gemini 2.5 line is being sunset for
+// new API keys/projects — Google's own 404 response for gemini-2.5-flash-lite
+// pointed us at gemini-3.5-flash-lite as the replacement — so this leads with
+// the 3.5 generation, pinned explicitly since even "-latest" aliases can
+// still resolve to a model that's blocked for a given key. Kept as a list
+// (not a single model) so a transient outage or a future retirement of one
+// model still falls through to a working one instead of failing outright.
+const MODELS_TO_TRY = ['gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-flash-latest'];
 
 const PROMPT_TEXT = `
 You are an expert financial OCR assistant specializing in MetaTrader 5 (MT5) mobile app (iOS and Android) trade history screenshots.
