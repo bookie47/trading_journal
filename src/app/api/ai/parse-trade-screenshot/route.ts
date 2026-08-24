@@ -22,20 +22,21 @@ const GEMINI_CALL_TIMEOUT_MS = 15000;
 // model still falls through to a working one instead of failing outright.
 const MODELS_TO_TRY = ['gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-flash-latest'];
 
-const PROMPT_TEXT = `
-You are an expert financial OCR assistant specializing in MetaTrader 5 (MT5) mobile app (iOS and Android) trade history screenshots.
-Analyze this screenshot carefully and extract ALL completed trading deals (BUY / SELL trades).
+const OCR_SYSTEM_PROMPT = `
+You are an expert OCR parser for MetaTrader 5 (MT5) mobile trade history screenshots.
+Analyze the provided MT5 screenshot image and extract ONLY the closed trading deals/positions.
 
-CRITICAL RULES:
-1. DO NOT include Balance transactions, Deposits, Withdrawals, Credits, or Broker fees (e.g. ignore rows with "Balance", "Credit", "Credit Out", "Credit-In", "CD-SC-BWR", "EXP01", "CW-PTD-BWR").
-2. ONLY extract actual trading deals (e.g. "GOLD buy 0.01", "EURUSD sell 0.10", "XAUUSD buy 0.05").
-3. For each trade row:
-   - symbol: Standard symbol name (e.g. "GOLD", "XAUUSD", "EURUSD")
-   - side: "BUY" or "SELL"
+STRICT INSTRUCTIONS:
+1. IGNORE all balance / deposit / withdrawal / credit rows (e.g. "Balance", "Credit", "EXP01", "EXP06", "CD-...", "CW-...").
+2. DO NOT extract half-visible or cut-off rows at the very top (under the header bar) or very bottom edge. Only extract fully visible trade rows.
+3. For each trade row, carefully align the open price on the left and profit on the right along the same horizontal line.
+4. Extract the following fields:
+   - symbol: Asset name without broker suffixes (e.g. "GOLD" from "GOLD", "GOLD.raw", "XAUUSD")
+   - side: "BUY" or "SELL" (from "buy 0.01" or "sell 0.01")
    - lots: Lot size / volume (e.g. 0.01)
    - open_price: The entry price on the left before the arrow (e.g. in "4656.59 -> 4650.71", open_price is 4656.59)
    - close_price: The exit price on the right after the arrow (e.g. in "4656.59 -> 4650.71", close_price is 4650.71)
-   - profit: Net profit/loss number on the right. If colored red with a minus sign (e.g. -5.88), profit is negative -5.88. If colored blue/white without minus (e.g. 21.11), profit is positive 21.11.
+   - profit: Net profit/loss number on the right (e.g. -5.88, 21.11, 23.09). Red with minus is negative.
    - close_time: The timestamp under the price (e.g. "2026.08.24 15:32:53")
    - ticket: Deal ticket number if visible, otherwise null.
 
@@ -221,13 +222,16 @@ export async function POST(req: NextRequest) {
     // -------------------------------------------------------------
     // Occurrence-Aware Cross-Image Deduplication Engine
     // -------------------------------------------------------------
-    // Fingerprint: asset_side_entryPrice_exitPrice_pnl
+    // Fingerprint: asset_side_entryPrice_exitPrice
     // Tracks maximum occurrence per image to perfectly handle screenshot scroll overlap
     const getPriceSignature = (t: ParsedTradeCandidate) => {
       const entryP = Number(t.entry_price || 0).toFixed(2);
       const exitP = Number(t.exit_price || 0).toFixed(2);
+      if (exitP !== '0.00') {
+        return `${t.asset}_${t.side}_${entryP}_${exitP}`;
+      }
       const pnlVal = Number(t.pnl || 0).toFixed(2);
-      return `${t.asset}_${t.side}_${entryP}_${exitP}_${pnlVal}`;
+      return `${t.asset}_${t.side}_${entryP}_${pnlVal}`;
     };
 
     // Track seen occurrences across images: Map<signature, countAccepted>
