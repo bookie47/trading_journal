@@ -40,7 +40,7 @@ interface TradingContextType {
   setFilters: React.Dispatch<React.SetStateAction<TradeFilters>>;
   resetFilters: () => void;
   resetToDemoData: () => void;
-  clearAllTrades: () => void;
+  clearAllTrades: () => Promise<void>;
   startFresh: () => void;
   refreshData: () => Promise<void>;
 }
@@ -375,8 +375,8 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
     loadData();
   }, [loadData]);
 
-  const clearAllTrades = useCallback(() => {
-    TradingRepository.clearAllTrades(activePortfolioId);
+  const clearAllTrades = useCallback(async () => {
+    await TradingRepository.clearAllTrades(activePortfolioId);
     setTrades([]);
   }, [activePortfolioId]);
 

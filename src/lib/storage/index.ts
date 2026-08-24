@@ -256,7 +256,13 @@ export class TradingRepository {
   }
 
   // Clear all trades
-  static clearAllTrades(portfolioId?: string) {
+  static async clearAllTrades(portfolioId?: string): Promise<void> {
+    if (this.isUsingFirestore()) {
+      const trades = await FirestoreService.getTrades(portfolioId);
+      await Promise.all(trades.map(t => FirestoreService.deleteTrade(t.id)));
+      return;
+    }
+
     if (!isBrowser) return;
     if (portfolioId) {
       const data = localStorage.getItem(STORAGE_KEYS.TRADES);
